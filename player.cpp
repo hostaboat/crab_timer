@@ -35,7 +35,7 @@ typedef enum
 
 #define PLAYER_WRITE_SIZE  32
 
-#define PLAYER_BUTTON_DEBOUNCE  200
+#define PLAYER_BUTTON_DEBOUNCE  150
 
 namespace Player
 {
