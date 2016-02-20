@@ -140,14 +140,13 @@ void UserInterface::stateInit(void)
     switch (_ui_state)
     {
         case UI_STATE__COUNT:
-            if (_count == 0)
-                Display::count(_total_count);
-            else
-                Display::count(_count);
+            _count = 0;
+            Display::count(_total_count);
             break;
 
         case UI_STATE__SET:
-            Display::time(0, _minutes);
+            _minutes = _default_minutes;
+            Display::time(0, _default_minutes);
             break;
 
         case UI_STATE__TIMER:
