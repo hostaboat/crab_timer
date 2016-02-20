@@ -113,7 +113,7 @@ void Player::prev(void)
 // Max writes are CLKI/4 and reads CLKI/7
 // Initially set SPI clock to 1Mhz until SCI_CLOCKF is set which should be around 43MHz
 // Then to 10MHz for writes and 6MHz for reads.
-// Maybe just set to 10MHz when writing data and 6MHz otherwise
+// Maybe just set to 10MHz when sending data and 6MHz otherwise
 bool Player::init(void)
 {
     if (!SPI::init())

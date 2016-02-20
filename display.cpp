@@ -144,8 +144,21 @@ void Display::count(uint16_t count)
     Wire.beginTransmission(HT16K33_DEV_ADDR);
     Wire.write(0x00);  // Command code
 
-    // Fourth digit
-    if (count >= 1000)
+    if (count > 9999)
+    {
+        Wire.write(Display::number_table[9]);
+        Wire.write(0x00);
+
+        Wire.write(Display::number_table[9]);
+        Wire.write(0x00);
+
+        Wire.write(Display::number_table[9]);
+        Wire.write(0x00);
+
+        Wire.write(Display::number_table[9]);
+        Wire.write(0x00);
+    }
+    else if (count >= 1000)
     {
         Wire.write(Display::number_table[count / 1000]);
         Wire.write(0x00);
@@ -255,11 +268,17 @@ void Display::time(uint8_t second, uint8_t minute)
         Wire.write(0x00);
         Wire.write(Display::number_table[minute]);
     }
-    else
+    else if (minute < 100)
     {
         Wire.write(Display::number_table[minute / 10]);
         Wire.write(0x00);
         Wire.write(Display::number_table[minute % 10]);
+    }
+    else
+    {
+        Wire.write(Display::number_table[9]);
+        Wire.write(0x00);
+        Wire.write(Display::number_table[9]);
     }
 
     // For some reason 16 bits needs to be written but only need 8 bits to represent digit
@@ -276,11 +295,17 @@ void Display::time(uint8_t second, uint8_t minute)
         Wire.write(0x00);
         Wire.write(Display::number_table[second]);
     }
-    else
+    else if (second < 60)
     {
         Wire.write(Display::number_table[second / 10]);
         Wire.write(0x00);
         Wire.write(Display::number_table[second % 10]);
+    }
+    else
+    {
+        Wire.write(Display::number_table[5]);
+        Wire.write(0x00);
+        Wire.write(Display::number_table[9]);
     }
 
     Wire.write(0x00);
