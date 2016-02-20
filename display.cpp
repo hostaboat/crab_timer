@@ -152,6 +152,9 @@ void Display::count(uint16_t count)
         Wire.write(Display::number_table[9]);
         Wire.write(0x00);
 
+        Wire.write(0x00);
+        Wire.write(0x00);
+
         Wire.write(Display::number_table[9]);
         Wire.write(0x00);
 
