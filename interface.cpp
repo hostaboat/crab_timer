@@ -302,9 +302,9 @@ void UserInterface::count(void)
     if (_encoder_turn != 0)
     {
         if (_encoder_turn < 0)
-            _count = (_count == 0) ? 9999 : (_count - 1);
+            _count = (_count == 0) ? 999 : (_count - 1);
         else
-            _count = (_count == 9999) ? 0 : (_count + 1);
+            _count = (_count == 999) ? 0 : (_count + 1);
 
         Display::count(_count);
     }
