@@ -9,6 +9,7 @@ typedef enum _ui_state
     UI_STATE__COUNT,
     UI_STATE__SET,
     UI_STATE__TIMER,
+    UI_STATE__LOW_BAT,
     UI_STATE__PASS
 
 } ui_state_t;
@@ -43,6 +44,7 @@ class UserInterface
         void stateInit(void);
         ui_state_t getState(void);
         ui_state_t getInput(void);
+        bool displaySleep(void);
         void count(void);
         void set(void);
         void time(void);
@@ -50,6 +52,7 @@ class UserInterface
         void timerStart(void);
         void timerStop(void);
         void timerAlert(void);
+        void lowBattery(void);
         void lowBatteryAlert(void);
 
         // Actions
@@ -74,6 +77,9 @@ class UserInterface
         // Timer state
         timer_state_t _timer_state;
         uint8_t _timer_pause;
+
+        // Low Battery state
+        bool _low_battery_ack;
 
         IntervalTimer _display_timer;
         IntervalTimer _led_timer;

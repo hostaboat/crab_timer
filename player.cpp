@@ -130,7 +130,7 @@ bool Player::init(void)
 
     // XXX Not sure if resetting is necessary since it will have been
     // just powered on anyway
-    Player::hardReset();
+    //Player::hardReset();
 
     // This needs to be set low until clock is set
     // CLKI == XTALI == 12288000

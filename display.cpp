@@ -61,9 +61,9 @@ void Display::init(void)
     Wire.begin();
 
     Display::wake();
-    Display::on();
     Display::brightness(Display::blevel);
     Display::blank();
+    Display::on();
 }
 
 void Display::wake(void)

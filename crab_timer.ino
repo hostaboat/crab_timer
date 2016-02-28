@@ -1,11 +1,7 @@
 #include "pins.h"
 #include "interface.h"
-#include <FastLED.h>
 
 UserInterface s_interface;
-
-#define NUM_LEDS  8
-CRGB s_leds[NUM_LEDS];
 
 void setup(void)
 {
@@ -58,9 +54,6 @@ void setup(void)
     pinMode(PIN_ROT_SWI_A, INPUT_PULLUP);
     pinMode(PIN_ROT_SWI_B, INPUT_PULLUP);
     pinMode(PIN_ROT_SWI_C, INPUT_PULLUP);
-
-    FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(s_leds, NUM_LEDS);
-    FastLED.setBrightness(64);
 
     s_interface.init();
 }
