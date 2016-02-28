@@ -1,5 +1,5 @@
-#ifndef _DEEP_SLEEP_H_
-#define _DEEP_SLEEP_H_
+#ifndef _LLWU_H_
+#define _LLWU_H_
 
 #include <cstdint>
 
