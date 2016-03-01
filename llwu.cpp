@@ -251,6 +251,7 @@ namespace LLWU
     bool enabled = false;
     bool lptmr_enabled = false;
     volatile wus_t wakeup_source = WUS_NONE;
+    int8_t wakeup_pin = -1;
 
     inline bool validPin(uint8_t pin)
     {
@@ -288,6 +289,8 @@ namespace LLWU
     {
         LLWU_F1 = 0xFF; LLWU_F2 = 0xFF; // LLWU_F3 = 0xFF;  F3 flags are read-only
     }
+
+    int8_t getWakeupPin(void);
 };
 
 void LLWU::enable(void)
@@ -488,6 +491,76 @@ wus_t LLWU::wakeupSource(void)
     return LLWU::wakeup_source;
 }
 
+int8_t LLWU::wakeupPin(void)
+{
+    if (LLWU::wakeup_source != WUS_PIN)
+        return -1;
+
+    return LLWU::wakeup_pin;
+}
+
+int8_t LLWU::getWakeupPin(void)
+{
+    uint32_t pin_mask = LLWU::pin_mask;
+
+    while (pin_mask)
+    {
+        int8_t pin = (int8_t)__builtin_ctz(pin_mask);
+
+        switch (pin)
+        {
+            case 2:
+                if (PIN_WUF_CHECK(2))
+                    return pin;
+                break;
+            case 4:
+                if (PIN_WUF_CHECK(4))
+                    return pin;
+                break;
+            case 6:
+                if (PIN_WUF_CHECK(6))
+                    return pin;
+                break;
+            case 7:
+                if (PIN_WUF_CHECK(7))
+                    return pin;
+                break;
+            case 9:
+                if (PIN_WUF_CHECK(9))
+                    return pin;
+                break;
+            case 10:
+                if (PIN_WUF_CHECK(10))
+                    return pin;
+                break;
+            case 11:
+                if (PIN_WUF_CHECK(11))
+                    return pin;
+                break;
+            case 13:
+                if (PIN_WUF_CHECK(13))
+                    return pin;
+                break;
+            case 16:
+                if (PIN_WUF_CHECK(16))
+                    return pin;
+                break;
+            case 21:
+                if (PIN_WUF_CHECK(21))
+                    return pin;
+                break;
+            case 22:
+                if (PIN_WUF_CHECK(22))
+                    return pin;
+                break;
+        }
+
+        pin_mask &= ~(1 << pin);
+    }
+
+    return -1;
+}
+
 wus_t LLWU::sleep(void)
 {
     // If module hasn't been enabled return
@@ -499,6 +572,7 @@ wus_t LLWU::sleep(void)
         return WUS_ERROR;
 
     LLWU::wakeup_source = WUS_NONE;
+    LLWU::wakeup_pin = -1;
 
     if (LLWU::lptmr_enabled)
         LPTMR0_CSR = (LPTMR_CSR_TEN | LPTMR_CSR_TCF | LPTMR_CSR_TIE);
@@ -560,10 +634,9 @@ void wakeup_isr(void)
     else
     {
         LLWU::wakeup_source = WUS_PIN;
+        LLWU::wakeup_pin = LLWU::getWakeupPin();
     }
 
-    // XXX Could use pin_mask to check which pin caused the interrupt
-    // if necessary.
     LLWU::clearWakeupFlags();
 
     // XXX Use pin_mask to clear PORT interrupts

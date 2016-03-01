@@ -44,7 +44,11 @@ class UserInterface
         void stateInit(void);
         ui_state_t getState(void);
         ui_state_t getInput(void);
+        bool CPUSleep(void);
         bool displaySleep(void);
+        bool sleep(void);
+        void ledsOn(void);
+        void ledsOff(void);
         void count(void);
         void set(void);
         void time(void);
@@ -60,7 +64,7 @@ class UserInterface
         switch_state_t _switch_state;
 
         // Timings
-        unsigned long _display_sleep;
+        unsigned long _sleep;
 
         // States
         ui_state_t _ui_state;
@@ -77,6 +81,9 @@ class UserInterface
         // Timer state
         timer_state_t _timer_state;
         uint8_t _timer_pause;
+
+        // Neopixel on state
+        bool _leds_on;
 
         // Low Battery state
         bool _low_battery_ack;

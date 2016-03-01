@@ -20,6 +20,10 @@ void setup(void)
     pinMode(PIN_BEEPER, OUTPUT);
     GPIO::clear(PIN_BEEPER);
 
+    // Neopixel base transistor switch
+    pinMode(PIN_NEO_TRANS, OUTPUT);
+    GPIO::set(PIN_NEO_TRANS);
+
     //////////////////////////////////////
     // SPI Chip select pins //////////////
     //////////////////////////////////////

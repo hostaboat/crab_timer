@@ -7,13 +7,14 @@
 #include "interface.h"
 #include "display.h"
 #include "player.h"
+#include "llwu.h"
 
 #define DISPLAY_INACTIVE  15000  // 15 seconds before setting it to standby
 #define RESET_TIME         2000  // 2 seconds of continuous pushing of switch to reset
 
-#define LED_BRIGHTNESS   64
-#define NUM_LEDS          8
-CRGB s_leds[NUM_LEDS];
+#define LED_BRIGHTNESS   128
+#define NUM_LEDS           8
+static CRGB s_leds[NUM_LEDS];
 
 #define TIMER_HUE_MAX   160  // Start with blue hue and decrease to red hue
 #define TIMER_HUE_MIN     0  // Red hue
@@ -21,6 +22,9 @@ CRGB s_leds[NUM_LEDS];
 #define EEPROM_COUNT_HIGH  0
 #define EEPROM_COUNT_LOW   1
 #define EEPROM_MINUTES     3
+
+#define LLWU_LPTMR_PERIOD   60000  // 60 seconds since 1kHz LPO timer is used
+#define LLWU_LPTMR_PERIODS     1
 
 // *****************************************************************************
 // Global variables used in interrupt handlers
@@ -115,9 +119,10 @@ static void update_leds(void)
 // Member functions
 UserInterface::UserInterface(void)
     : _encoder_turn(0), _switch_state(SWITCH_STATE__NONE),
-      _display_sleep(0), _ui_state(UI_STATE__PASS), _last_ui_state(UI_STATE__PASS),
+      _sleep(0), _ui_state(UI_STATE__PASS), _last_ui_state(UI_STATE__PASS),
       _total_count(0), _count(0), _default_minutes(0), _minutes(0),
-      _timer_state(TIMER_STATE__INIT), _timer_pause(1), _low_battery_ack(false)
+      _timer_state(TIMER_STATE__INIT), _timer_pause(1),
+      _leds_on(true), _low_battery_ack(false)
 {
 }
 
@@ -193,7 +198,129 @@ ui_state_t UserInterface::getState(void)
     return _ui_state;
 }
 
+// Turns CPU clocks off saving ~44mA on MCU.
+// Additionally turns neopixel strip off saving ~7mA (it consumes about this
+// much despite having all of the pixels off).
+// If the VS1053 also gets turned off (~14mA) should get a total of ~65mA
+// savings putting things ~10mA which should be about what the LED on the
+// PowerBoost is consuming.
+bool UserInterface::CPUSleep(void)
+{
+    if ((_encoder_turn != 0) || (_switch_state != SWITCH_STATE__NONE))
+    {
+        _sleep = millis();
+        return false;
+    }
+    else if ((millis() - _sleep) <= DISPLAY_INACTIVE)
+    {
+        return false;
+    }
+
+    LLWU::enable();
+
+    if (!LLWU::wakeupPinEnable(PIN_ROT_ENC_SW, WUPE_CHANGE)
+            || !LLWU::wakeupPinEnable(PIN_ROT_ENC_A, WUPE_CHANGE)
+            || !LLWU::wakeupPinEnable(PIN_AUDIO_PLAY, WUPE_FALLING)
+            || !LLWU::wakeupLPTMREnable(LLWU_LPTMR_PERIOD))
+    {
+        LLWU::disable();
+        return false;
+    }
+
+    detachInterrupt(PIN_ROT_ENC_SW);
+    detachInterrupt(PIN_ROT_ENC_A);
+
+    ledsOff();
+    //FastLED.show(0);
+    Display::standby();
+
+    wus_t wakeup_source;
+    int8_t wakeup_pin = -1;
+
+    // Sleep for number of periods as long as wakeup source is LPTMR
+    for (uint8_t i = 0; i < LLWU_LPTMR_PERIODS; i++)
+    {
+        wakeup_source = LLWU::sleep();
+        if (wakeup_source != WUS_TIMER)
+            break;
+    }
+
+    // If the wakeup source is still LPTMR, disable it and put the
+    // VS1053 to sleep.
+    if ((wakeup_source == WUS_TIMER) && LLWU::wakeupLPTMRDisable())
+    {
+        // This will turn the player off saving ~15mA more
+        Player::stop();
+        wakeup_source = LLWU::sleep();
+        Player::resume();
+    }
+
+    if (wakeup_source == WUS_PIN)
+        wakeup_pin = LLWU::wakeupPin();
+
+    LLWU::disable();
+
+    while (GPIO::read(PIN_ROT_ENC_SW) == HIGH);
+
+    NVIC_CLEAR_PENDING(IRQ_PORTA);
+    NVIC_CLEAR_PENDING(IRQ_PORTB);
+    NVIC_CLEAR_PENDING(IRQ_PORTC);
+    NVIC_CLEAR_PENDING(IRQ_PORTD);
+    NVIC_CLEAR_PENDING(IRQ_PORTE);
+
+    attachInterrupt(PIN_ROT_ENC_SW, switch_pressed, CHANGE);
+    attachInterrupt(PIN_ROT_ENC_A, encoder_rotate, CHANGE);
+
+    if (wakeup_pin == PIN_AUDIO_PLAY)
+    {
+        Player::resume();
+    }
+    else
+    {
+        ledsOn();
+        //FastLED.show(LED_BRIGHTNESS);
+        Display::wake();
+    }
+
+    _sleep = millis();
+
+    return true;
+}
+
 bool UserInterface::displaySleep(void)
+{
+    if ((_encoder_turn != 0) || (_switch_state != SWITCH_STATE__NONE))
+    {
+        _sleep = millis();
+
+        // Treat encoder turn or switch press as a wakeup
+        // and don't process in usual way
+        if (!Display::isAwake())
+        {
+            ledsOn();
+            //FastLED.show(LED_BRIGHTNESS);
+            Display::wake();
+            return true;
+        }
+
+        return false;
+    }
+    else if (!Display::isAwake())
+    {
+        return true;
+    }
+    else if ((millis() - _sleep) > DISPLAY_INACTIVE)
+    {
+        ledsOff();
+        //FastLED.show(0);
+        Display::standby();
+        return true;
+    }
+
+    return false;
+}
+
+bool UserInterface::sleep(void)
 {
     switch (_ui_state)
     {
@@ -215,31 +342,34 @@ bool UserInterface::displaySleep(void)
             break;
     }
 
-    if ((_encoder_turn != 0) || (_switch_state != SWITCH_STATE__NONE))
-    {
-        _display_sleep = millis();
+    if (Player::isPaused())
+        return CPUSleep();
+    else
+        return displaySleep();
+}
 
-        // Treat encoder turn or switch press as a wakeup
-        // and don't process in usual way
-        if (!Display::isAwake())
-        {
-            FastLED.show(LED_BRIGHTNESS);
-            Display::wake();
-            return true;
-        }
-    }
-    else if (!Display::isAwake())
-    {
-        return true;
-    }
-    else if ((millis() - _display_sleep) > DISPLAY_INACTIVE)
-    {
-        FastLED.show(0);
-        Display::standby();
-        return true;
-    }
+void UserInterface::ledsOn(void)
+{
+    if (_leds_on)
+        return;
 
-    return false;
+    GPIO::set(PIN_NEO_TRANS);
+    delay(10);
+    FastLED.show(LED_BRIGHTNESS);
+
+    _leds_on = true;
+}
+
+void UserInterface::ledsOff(void)
+{
+    if (!_leds_on)
+        return;
+
+    FastLED.show(0);
+    delay(10);
+    GPIO::clear(PIN_NEO_TRANS);
+
+    _leds_on = false;
 }
 
 ui_state_t UserInterface::getInput(void)
@@ -252,7 +382,7 @@ ui_state_t UserInterface::getInput(void)
     {
         stateInit();
         _last_ui_state = _ui_state;
-        _display_sleep = millis();
+        _sleep = millis();
     }
     else if (s_switch_state != SWITCH_STATE__NONE)
     {
@@ -297,7 +427,7 @@ ui_state_t UserInterface::getInput(void)
     }
 
     // Put display and leds to sleep when inactive
-    if (displaySleep())
+    if (sleep())
         return UI_STATE__PASS;
 
     return _ui_state;
@@ -418,7 +548,7 @@ void UserInterface::time(void)
         case SWITCH_STATE__SHORT_PRESS:
             _timer_pause ^= 1;
             switch_pressed = true;
-            _display_sleep = millis();
+            _sleep = millis();
             break;
 
         case SWITCH_STATE__LONG_PRESS:
@@ -427,7 +557,7 @@ void UserInterface::time(void)
             _timer_state = TIMER_STATE__INIT;
             _timer_pause = 1;
             Display::time(0, _minutes);
-            _display_sleep = millis();
+            _sleep = millis();
             break;
     }
 

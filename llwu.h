@@ -31,8 +31,9 @@ namespace LLWU
     bool wakeupPinDisable(uint8_t pin);
     bool wakeupLPTMREnable(uint16_t msecs);
     bool wakeupLPTMRDisable(void);
-    wus_t wakeupSource(void);
     wus_t sleep(void);
+    wus_t wakeupSource(void);
+    int8_t wakeupPin(void);
 };
 
 #endif

@@ -39,6 +39,7 @@ typedef enum
 
 namespace Player
 {
+    void reset(void);
     void hardReset(void);
     void softReset(void);
     bool ready(void);
@@ -56,6 +57,7 @@ namespace Player
     uint32_t cta_sci = 0;
     uint32_t cta_sdi = 0;
     bool disabled = false;
+    bool stopped = false;
     int paused = 1;
     int8_t next_file = 0;
 
@@ -128,9 +130,18 @@ bool Player::init(void)
         return false;
     }
 
-    // XXX Not sure if resetting is necessary since it will have been
-    // just powered on anyway
-    //Player::hardReset();
+    attachInterrupt(PIN_AUDIO_PLAY, Player::pause, FALLING);
+    attachInterrupt(PIN_AUDIO_NEXT, Player::next, FALLING);
+    attachInterrupt(PIN_AUDIO_PREV, Player::prev, FALLING);
+
+    Player::reset();
+
+    return true;
+}
+
+void Player::reset(void)
+{
+    Player::hardReset();
 
     // This needs to be set low until clock is set
     // CLKI == XTALI == 12288000
@@ -149,19 +160,64 @@ bool Player::init(void)
     // CLKI / 4 = 43008000 / 4 = 10752000
     //Player::cta_sdi = CTAR(10000000, 5, 24, 0);
     Player::cta_sdi = CTAR(10000000, 0, 0, 0);
+}
 
-    attachInterrupt(PIN_AUDIO_PLAY, Player::pause, FALLING);
-    attachInterrupt(PIN_AUDIO_NEXT, Player::next, FALLING);
-    attachInterrupt(PIN_AUDIO_PREV, Player::prev, FALLING);
+void Player::stop(void)
+{
+    if (Player::stopped)
+        return;
 
-    return true;
+    detachInterrupt(PIN_AUDIO_PLAY);
+    detachInterrupt(PIN_AUDIO_NEXT);
+    detachInterrupt(PIN_AUDIO_PREV);
+
+    GPIO::clear(PIN_AMP_SDWN);
+    GPIO::clear(PIN_AUDIO_RST);
+
+    Player::stopped = true;
+}
+
+void Player::resume(void)
+{
+    if (!Player::stopped && !Player::paused)
+        return;
+
+    if (Player::stopped)
+    {
+        Player::next_file = 1;
+
+        attachInterrupt(PIN_AUDIO_PLAY, Player::pause, FALLING);
+        attachInterrupt(PIN_AUDIO_NEXT, Player::next, FALLING);
+        attachInterrupt(PIN_AUDIO_PREV, Player::prev, FALLING);
+
+        Player::reset();
+        Player::stopped = false;
+    }
+    else if (Player::paused)
+    {
+        GPIO::set(PIN_AMP_SDWN);
+        Player::paused = 0;
+    }
 }
 
 void Player::disable(void)
 {
+    if (Player::disabled)
+        return;
+
     GPIO::clear(PIN_AMP_SDWN);
     GPIO::clear(PIN_AUDIO_RST);
     Player::disabled = true;
+}
+
+bool Player::isPaused(void)
+{
+    return Player::paused;
+}
+
+bool Player::isStopped(void)
+{
+    return Player::stopped;
 }
 
 bool Player::isDisabled(void)
@@ -331,7 +387,7 @@ void Player::play(void)
 {
     static elapsedMillis msec = 0;
 
-    if (Player::disabled || Player::paused)
+    if (Player::disabled || Player::paused || Player::stopped)
         return;
 
     // Wait a second for VS1053 2048 byte buffer to finish playing file

@@ -23,7 +23,7 @@
 #define PIN_AUDIO_DCS   17   // SPI - VS1053 Data Chip Select (SDI)
 #define PIN_SDA         18   // I2C - SDA  (7-Segment Display)
 #define PIN_SCL         19   // I2C - SCL  (7-Segment Display)
-// 20
+#define PIN_NEO_TRANS   20   // Base of transistor to turn on Neopixel strip
 #define PIN_ROT_ENC_SW  21   // Rotary Encoder Switch
 #define PIN_ROT_ENC_A   22   // Rotary Encoder A
 #define PIN_ROT_ENC_B   23   // Rotary Encoder B
