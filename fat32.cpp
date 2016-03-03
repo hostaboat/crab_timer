@@ -488,7 +488,7 @@ bool FAT32::getFiles(uint32_t cluster, uint8_t level, const char* extensions[])
                 if (!getFiles(next_dir_cluster, level + 1, extensions))
                     return false;
             }
-            else if (!(entry->attrs & (ATTR_SYSTEM | ATTR_VOLUME_ID)))
+            else if (!(entry->attrs & (ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID)))
             {
                 char* ext = entry->name + 8;
 
