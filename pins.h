@@ -28,6 +28,8 @@
 #define PIN_ROT_ENC_A   22   // Rotary Encoder A
 #define PIN_ROT_ENC_B   23   // Rotary Encoder B
 
+#define PIN_MAX   24
+
 #define PIN0_PORT_REG    (*(volatile uint32_t *)0x4004A040)
 #define PIN1_PORT_REG    (*(volatile uint32_t *)0x4004A044)
 #define PIN2_PORT_REG    (*(volatile uint32_t *)0x4004C000)
@@ -53,6 +55,8 @@
 #define PIN22_PORT_REG   (*(volatile uint32_t *)0x4004B004)
 #define PIN23_PORT_REG   (*(volatile uint32_t *)0x4004B008)
 
+#define PIN_PORT_REG(pin)   PIN ## pin ## _PORT_REG
+
 #define PIN0_GPIO   (((PIN0_PORT_REG & 0x00000700) >> 8) == 1)
 #define PIN1_GPIO   (((PIN1_PORT_REG & 0x00000700) >> 8) == 1)
 #define PIN2_GPIO   (((PIN2_PORT_REG & 0x00000700) >> 8) == 1)
@@ -77,6 +81,8 @@
 #define PIN21_GPIO  (((PIN21_PORT_REG & 0x00000700) >> 8) == 1)
 #define PIN22_GPIO  (((PIN22_PORT_REG & 0x00000700) >> 8) == 1)
 #define PIN23_GPIO  (((PIN23_PORT_REG & 0x00000700) >> 8) == 1)
+
+#define PIN_GPIO(pin)     PIN ## pin ## _GPIO
 
 #define GPIO_PIN0_PDOR  (*(volatile uint32_t *)0x43fe0840)
 #define GPIO_PIN0_PSOR  (*(volatile uint32_t *)0x43fe08c0)
@@ -253,6 +259,9 @@
 #define GPIO_PDIR  4
 #define GPIO_PDDR  5
 #define GPIO_PMAX  6
+
+#define GPIO_INPUT(pin)   (GPIO::ddir(pin) == 0)
+#define GPIO_OUTPUT(pin)  (GPIO::ddir(pin) == 1)
 
 namespace GPIO
 {

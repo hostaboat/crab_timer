@@ -1,6 +1,5 @@
 #include <IntervalTimer.h>
 #include <FastLED.h>
-#include <EEPROM.h>
 #include <elapsedMillis.h>
 #include <cstdint>
 #include "pins.h"
@@ -8,20 +7,18 @@
 #include "display.h"
 #include "player.h"
 #include "llwu.h"
+#include "nvm.h"
+#include "intr.h"
 
 #define DISPLAY_INACTIVE  15000  // 15 seconds before setting it to standby
 #define RESET_TIME         2000  // 2 seconds of continuous pushing of switch to reset
 
-#define LED_BRIGHTNESS   128
+#define LED_BRIGHTNESS   192
 #define NUM_LEDS           8
 static CRGB s_leds[NUM_LEDS];
 
 #define TIMER_HUE_MAX   160  // Start with blue hue and decrease to red hue
 #define TIMER_HUE_MIN     0  // Red hue
-
-#define EEPROM_COUNT_HIGH  0
-#define EEPROM_COUNT_LOW   1
-#define EEPROM_MINUTES     3
 
 #define LLWU_LPTMR_PERIOD   60000  // 60 seconds since 1kHz LPO timer is used
 #define LLWU_LPTMR_PERIODS     1
@@ -42,10 +39,10 @@ static volatile uint16_t s_hue = 160;
 // Interrupt handlers
 static void encoder_rotate(void)
 {
-    static int last = 0;
-
     if (GPIO::read(PIN_ROT_ENC_SW) == HIGH)
         return;
+
+    static int last = 0;
 
     if (GPIO::read(PIN_ROT_ENC_A) != GPIO::read(PIN_ROT_ENC_B))
     {
@@ -131,15 +128,17 @@ void UserInterface::init(void)
     FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(s_leds, NUM_LEDS);
     FastLED.setBrightness(LED_BRIGHTNESS);
 
+    INTR::init();
+    (void)NVM::init();
     Display::init();
-    Player::init();
+    (void)Player::init();
 
-    attachInterrupt(PIN_ROT_ENC_A, encoder_rotate, CHANGE);
-    attachInterrupt(PIN_ROT_ENC_SW, switch_pressed, CHANGE);
+    (void)INTR::attach(PIN_ROT_ENC_A, encoder_rotate, IRQC_CHANGE);
+    (void)INTR::attach(PIN_ROT_ENC_SW, switch_pressed, IRQC_CHANGE);
 
-    _total_count = ((uint16_t)EEPROM.read(EEPROM_COUNT_HIGH) << 8)
-        | (uint16_t)EEPROM.read(EEPROM_COUNT_LOW);
-    _default_minutes = _minutes = EEPROM.read(EEPROM_MINUTES);
+    (void)NVM::read16(NVM_COUNT_INDEX, _total_count);
+    (void)NVM::read16(NVM_TIME_INDEX, _default_minutes);
+    _minutes = _default_minutes;
 }
 
 void UserInterface::stateInit(void)
@@ -218,20 +217,18 @@ bool UserInterface::CPUSleep(void)
 
     LLWU::enable();
 
-    if (!LLWU::wakeupPinEnable(PIN_ROT_ENC_SW, WUPE_CHANGE)
+    if (!LLWU::wakeupPinEnable(PIN_ROT_ENC_SW, WUPE_RISING)
             || !LLWU::wakeupPinEnable(PIN_ROT_ENC_A, WUPE_CHANGE)
-            || !LLWU::wakeupPinEnable(PIN_AUDIO_PLAY, WUPE_FALLING)
+            || !LLWU::wakeupPinEnable(PIN_AUDIO_PLAY, WUPE_RISING)
             || !LLWU::wakeupLPTMREnable(LLWU_LPTMR_PERIOD))
     {
         LLWU::disable();
         return false;
     }
 
-    detachInterrupt(PIN_ROT_ENC_SW);
-    detachInterrupt(PIN_ROT_ENC_A);
+    INTR::suspend();
 
     ledsOff();
-    //FastLED.show(0);
     Display::standby();
 
     wus_t wakeup_source;
@@ -252,7 +249,6 @@ bool UserInterface::CPUSleep(void)
         // This will turn the player off saving ~15mA more
         Player::stop();
         wakeup_source = LLWU::sleep();
-        Player::resume();
     }
 
     if (wakeup_source == WUS_PIN)
@@ -261,15 +257,10 @@ bool UserInterface::CPUSleep(void)
     LLWU::disable();
 
     while (GPIO::read(PIN_ROT_ENC_SW) == HIGH);
+    while (GPIO::read(PIN_AUDIO_PLAY) == HIGH);
 
-    NVIC_CLEAR_PENDING(IRQ_PORTA);
-    NVIC_CLEAR_PENDING(IRQ_PORTB);
-    NVIC_CLEAR_PENDING(IRQ_PORTC);
-    NVIC_CLEAR_PENDING(IRQ_PORTD);
-    NVIC_CLEAR_PENDING(IRQ_PORTE);
-
-    attachInterrupt(PIN_ROT_ENC_SW, switch_pressed, CHANGE);
-    attachInterrupt(PIN_ROT_ENC_A, encoder_rotate, CHANGE);
+    INTR::clear();
+    INTR::resume();
 
     if (wakeup_pin == PIN_AUDIO_PLAY)
     {
@@ -278,7 +269,6 @@ bool UserInterface::CPUSleep(void)
     else
     {
         ledsOn();
-        //FastLED.show(LED_BRIGHTNESS);
         Display::wake();
     }
 
@@ -342,7 +332,7 @@ bool UserInterface::sleep(void)
             break;
     }
 
-    if (Player::isPaused())
+    if (!Player::occupied())
         return CPUSleep();
     else
         return displaySleep();
@@ -485,15 +475,13 @@ void UserInterface::count(void)
             case SWITCH_STATE__SHORT_PRESS:
                 _total_count += _count;
                 _count = 0;
-                EEPROM.write(EEPROM_COUNT_HIGH, (uint8_t)(_total_count >> 8));
-                EEPROM.write(EEPROM_COUNT_LOW, (uint8_t)(_total_count & 0x00FF));
+                (void)NVM::write(NVM_COUNT_INDEX, _total_count);
                 Display::count(_total_count);
                 break;
 
             case SWITCH_STATE__LONG_PRESS:
                 _count = _total_count = 0;
-                EEPROM.write(EEPROM_COUNT_HIGH, 0);
-                EEPROM.write(EEPROM_COUNT_LOW, 0);
+                (void)NVM::write(NVM_COUNT_INDEX, 0);
                 Display::count(_total_count);
                 break;
         }
@@ -521,11 +509,11 @@ void UserInterface::set(void)
 
             case SWITCH_STATE__SHORT_PRESS:
                 _default_minutes = _minutes;
-                EEPROM.write(EEPROM_MINUTES, _default_minutes);
+                (void)NVM::write(NVM_TIME_INDEX, _default_minutes);
                 break;
 
             case SWITCH_STATE__LONG_PRESS:
-                _default_minutes = EEPROM.read(EEPROM_MINUTES);
+                (void)NVM::read16(NVM_TIME_INDEX, _default_minutes);
                 _minutes = _default_minutes;
                 Display::time(0, _default_minutes);
                 break;

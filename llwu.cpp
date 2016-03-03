@@ -224,9 +224,6 @@
 #define LPTMR_WUME_CLEAR   LLWU_WUME_CLEAR(0)
 #define LPTMR_MWUF_CHECK   LLWU_WUME_CHECK(0)
 
-#define PIN_GPIO(pin)     PIN ## pin ## _GPIO
-#define GPIO_INPUT(pin)  (GPIO::ddir(pin) == 0)
-
 void wakeup_isr(void);
 //void lptmr_isr(void);
 
@@ -255,7 +252,7 @@ namespace LLWU
 
     inline bool validPin(uint8_t pin)
     {
-        if (pin >= 32)
+        if (pin >= PIN_MAX)
             return false;
 
         return (valid_pin_mask & (1 << pin)) ? true : false;

@@ -2,6 +2,7 @@
 #include "spi.h"
 #include "spi_util.h"
 #include "fat32.h"
+#include "intr.h"
 #include "pins.h"
 #include <elapsedMillis.h>
 #include <cstdint>
@@ -29,13 +30,10 @@ typedef enum
 
 #define VS1053_CMD_WRITE  0x02
 #define VS1053_CMD_READ   0x03
+#define VS1053_SM_RESET  0x0004
 
-#define SM_RESET  0x0004
-#define SM_CANCEL 0x0008
-
-#define PLAYER_WRITE_SIZE  32
-
-#define PLAYER_BUTTON_DEBOUNCE  150
+#define PLAYER_WRITE_SIZE   32
+#define PLAYER_STOP_TIME  2000
 
 namespace Player
 {
@@ -56,16 +54,26 @@ namespace Player
 
     uint32_t cta_sci = 0;
     uint32_t cta_sdi = 0;
-    bool disabled = false;
-    bool stopped = false;
-    int paused = 1;
-    int8_t next_file = 0;
+
+    volatile bool disabled = false;
+    volatile bool stopped = false;
+    volatile int paused = 1;
+    volatile bool pause_depressed = false;
+    volatile bool prev_depressed = false;
+    volatile bool next_depressed = false;
+    volatile uint8_t ffwd = 0;
+    volatile uint8_t rwd = 0;
 
     const char* extensions[3] = {
         "MP3",
         "M4A",
         NULL
     };
+
+    inline bool buttonDepressed(void)
+    {
+        return (pause_depressed || prev_depressed || next_depressed);
+    }
 };
 
 void Player::pause(void)
@@ -73,41 +81,86 @@ void Player::pause(void)
     if (Player::disabled)
         return;
 
-    static uint32_t last_update = 0;
+    static int depressed = 0;
+    static unsigned long depressed_start = 0;
 
-    if ((millis() - last_update) > PLAYER_BUTTON_DEBOUNCE)
+    depressed ^= 1;
+
+    if (depressed)
     {
-        Player::paused ^= 1;
-        GPIO::toggle(PIN_AMP_SDWN);
-        last_update = millis();
+        depressed_start = millis();
+        Player::pause_depressed = true;
+    }
+    else
+    {
+        if ((millis() - depressed_start) < PLAYER_STOP_TIME)
+        {
+            if (Player::stopped)
+            {
+                Player::resume();
+            }
+            else
+            {
+                Player::paused ^= 1;
+                GPIO::toggle(PIN_AMP_SDWN);
+            }
+        }
+        else if (Player::stopped)
+        {
+            Player::resume();
+        }
+        else
+        {
+            Player::stop();
+        }
+
+        Player::pause_depressed = false;
     }
 }
 
 void Player::next(void)
 {
-    if (Player::disabled || Player::next_file)
+    if (Player::disabled || Player::paused || Player::stopped)
         return;
 
-    static uint32_t last_update = 0;
+    static int depressed = 0;
+    static unsigned long depressed_start = 0;
 
-    if ((millis() - last_update) > PLAYER_BUTTON_DEBOUNCE)
+    depressed ^= 1;
+
+    if (depressed)
     {
-        Player::next_file++;
-        last_update = millis();
+        depressed_start = millis();
+        Player::next_depressed = true;
+    }
+    else   // Released
+    {
+        // Fast forward an extra file per second (actually 1024 ms)
+        Player::ffwd = (uint8_t)((millis() - depressed_start) >> 10) + 1;
+        Player::next_depressed = false;
     }
 }
 
 void Player::prev(void)
 {
-    if (Player::disabled || Player::next_file)
+    if (Player::disabled || Player::paused || Player::stopped)
         return;
 
-    static uint32_t last_update = 0;
+    static int depressed = 0;
+    static unsigned long depressed_start = 0;
 
-    if ((millis() - last_update) > PLAYER_BUTTON_DEBOUNCE)
+    depressed ^= 1;
+
+    if (depressed)
     {
-        Player::next_file--;
-        last_update = millis();
+        depressed_start = millis();
+        Player::prev_depressed = true;
+    }
+    else   // Released
+    {
+        // Rewind an extra file per second (actually 1024 ms)
+        Player::rwd = (uint8_t)((millis() - depressed_start) >> 10) + 1;
+        Player::prev_depressed = false;
     }
 }
 
@@ -130,9 +183,9 @@ bool Player::init(void)
         return false;
     }
 
-    attachInterrupt(PIN_AUDIO_PLAY, Player::pause, FALLING);
-    attachInterrupt(PIN_AUDIO_NEXT, Player::next, FALLING);
-    attachInterrupt(PIN_AUDIO_PREV, Player::prev, FALLING);
+    INTR::attach(PIN_AUDIO_PLAY, Player::pause, IRQC_CHANGE);
+    INTR::attach(PIN_AUDIO_PREV, Player::prev, IRQC_CHANGE);
+    INTR::attach(PIN_AUDIO_NEXT, Player::next, IRQC_CHANGE);
 
     Player::reset();
 
@@ -162,19 +215,21 @@ void Player::reset(void)
     Player::cta_sdi = CTAR(10000000, 0, 0, 0);
 }
 
+bool Player::occupied(void)
+{
+    return (!Player::paused || Player::buttonDepressed());
+}
+
 void Player::stop(void)
 {
     if (Player::stopped)
         return;
 
-    detachInterrupt(PIN_AUDIO_PLAY);
-    detachInterrupt(PIN_AUDIO_NEXT);
-    detachInterrupt(PIN_AUDIO_PREV);
-
     GPIO::clear(PIN_AMP_SDWN);
     GPIO::clear(PIN_AUDIO_RST);
 
     Player::stopped = true;
+    Player::paused = 1;
 }
 
 void Player::resume(void)
@@ -184,20 +239,15 @@ void Player::resume(void)
 
     if (Player::stopped)
     {
-        Player::next_file = 1;
-
-        attachInterrupt(PIN_AUDIO_PLAY, Player::pause, FALLING);
-        attachInterrupt(PIN_AUDIO_NEXT, Player::next, FALLING);
-        attachInterrupt(PIN_AUDIO_PREV, Player::prev, FALLING);
-
         Player::reset();
         Player::stopped = false;
+
+        if (!FAT32::rewind())
+            Player::disabled = true;
     }
-    else if (Player::paused)
-    {
-        GPIO::set(PIN_AMP_SDWN);
-        Player::paused = 0;
-    }
+
+    Player::paused = 0;
+    GPIO::set(PIN_AMP_SDWN);
 }
 
 void Player::disable(void)
@@ -236,7 +286,7 @@ void Player::hardReset(void)
 void Player::softReset(void)
 {
     uint16_t mode = Player::get(VS1053_CMD_MODE);
-    Player::set(VS1053_CMD_MODE, mode | SM_RESET);
+    Player::set(VS1053_CMD_MODE, mode | VS1053_SM_RESET);
     delay(5);
     //while (!Player::ready());
 }
@@ -387,31 +437,36 @@ void Player::play(void)
 {
     static elapsedMillis msec = 0;
 
-    if (Player::disabled || Player::paused || Player::stopped)
+    if (Player::disabled || Player::paused
+            || Player::stopped || Player::buttonDepressed())
+    {
         return;
+    }
 
     // Wait a second for VS1053 2048 byte buffer to finish playing file
     // before resetting.
     if (FAT32::eof() && (msec < 1000))
         return;
 
-    if (FAT32::eof() || Player::next_file)
+    if (FAT32::eof() || Player::rwd || Player::ffwd)
     {
-        int8_t next_file = 1;
+        int16_t new_file = 1;
 
         if (!FAT32::eof())
         {
             noInterrupts();
 
-            next_file = Player::next_file;
-            Player::next_file = 0;
+            new_file = (int16_t)(Player::ffwd - Player::rwd);
+            Player::ffwd = 0;
+            Player::rwd = 0;
 
             interrupts();
         }
 
         Player::softReset();
 
-        if (!FAT32::newFile(next_file))
+        bool nfile = (new_file < 0) ? FAT32::prev(-new_file) : FAT32::next(new_file);
+        if (!nfile)
         {
             Player::disable();
             return;
@@ -438,4 +493,3 @@ void Player::play(void)
             msec = 0;
     }
 }
-

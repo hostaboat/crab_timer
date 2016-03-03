@@ -5,6 +5,7 @@ namespace Player
 {
     bool init(void);
     void play(void);
+    bool occupied(void);
     void stop(void);
     void resume(void);
     void disable(void);

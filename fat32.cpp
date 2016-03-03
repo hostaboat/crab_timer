@@ -1,5 +1,6 @@
 #include "fat32.h"
 #include "sd.h"
+#include "nvm.h"
 #include <cstdint>
 #include <cstring>
 //#include <WProgram.h>   // For Serial debugging
@@ -215,6 +216,7 @@ namespace FAT32
     bool nextCluster(uint32_t cluster);
     bool readFAT(uint32_t fat_sector);
     bool getFiles(uint32_t cluster, uint8_t level, const char* extensions[]);
+    bool newFile(uint16_t index);
 
     uint32_t fat_sector_start = 0;
     uint32_t data_sector_start = 0;
@@ -237,7 +239,7 @@ namespace FAT32
     uint8_t data_dir_sectors[DIR_MAX_LEVEL][FAT32_SECTOR_SIZE];
     uint8_t fat_dir_sectors[DIR_MAX_LEVEL][FAT32_SECTOR_SIZE];
 
-    int16_t file_index = 0;
+    uint16_t file_index = 0;
     uint16_t num_files = 0;
     file_t files[1024];
 };
@@ -338,10 +340,19 @@ bool FAT32::init(uint16_t read_size, const char* extensions[])
     if (!FAT32::getFiles(FAT32::root_cluster, 0, extensions))
         return false;
 
+    // getFiles() will end up setting file_index to the number of files found.
     FAT32::num_files = FAT32::file_index;
-    FAT32::file_index = 0;
 
-    if (!FAT32::newFile(0))
+    (void)NVM::init();
+
+    // Get index of file to start playing from EEPROM
+    if (!NVM::read16(NVM_FILE_INDEX, FAT32::file_index)
+            || (FAT32::file_index >= FAT32::num_files))
+    {
+        FAT32::file_index = 0;
+    }
+
+    if (!FAT32::newFile(FAT32::file_index))
         return false;
 
     return true;
@@ -559,22 +570,70 @@ bool FAT32::getFiles(uint32_t cluster, uint8_t level, const char* extensions[])
     return true;
 }
 
-bool FAT32::newFile(int8_t increment)
+bool FAT32::prev(uint16_t num_tracks)
 {
-    if (FAT32::num_files == 0)
-        return false;
+    if (num_tracks == 0)
+        return FAT32::rewind();
 
-    if (increment != 0)
+    uint32_t file_size = FAT32::files[FAT32::file_index].size;
+
+    // If at least 1/4 of the song played save index to EEPROM
+    if ((file_size - FAT32::file_remaining) > (file_size >> 2))
+        (void)NVM::write(NVM_FILE_INDEX, FAT32::file_index);
+
+    // If less than 1/8 of the file has played go to previous file
+    // otherwise rewind it.
+    if ((file_size - FAT32::file_remaining) < (file_size >> 3))
     {
-        increment = (FAT32::file_index + increment) % FAT32::num_files;
-        if (increment < 0)
-            FAT32::file_index = FAT32::num_files + increment;
+        if (FAT32::file_index == 0)
+            FAT32::file_index = FAT32::num_files - 1;
         else
-            FAT32::file_index = increment;
+            FAT32::file_index--;
+
+        num_tracks--;
     }
 
-    FAT32::file_cluster = FAT32::files[FAT32::file_index].cluster;
-    FAT32::file_remaining = FAT32::files[FAT32::file_index].size;
+    if (num_tracks != 0)
+    {
+        int32_t inc = ((int32_t)FAT32::file_index - num_tracks) % FAT32::num_files;
+        if (inc < 0)
+            FAT32::file_index = (uint16_t)(FAT32::num_files + inc);
+        else
+            FAT32::file_index = (uint16_t)inc;
+    }
+
+    return FAT32::newFile(FAT32::file_index);
+}
+
+bool FAT32::next(uint16_t num_tracks)
+{
+    uint32_t file_size = FAT32::files[FAT32::file_index].size;
+
+    // If at least 1/4 of the song played save index to EEPROM
+    if ((file_size - FAT32::file_remaining) > (file_size >> 2))
+        (void)NVM::write(NVM_FILE_INDEX, FAT32::file_index);
+
+    if (num_tracks != 0)
+    {
+        int32_t inc = ((int32_t)FAT32::file_index + num_tracks) % FAT32::num_files;
+        FAT32::file_index = (uint16_t)inc;
+    }
+
+    return FAT32::newFile(FAT32::file_index);
+}
+
+bool FAT32::rewind(void)
+{
+    return FAT32::newFile(FAT32::file_index);
+}
+
+bool FAT32::newFile(uint16_t index)
+{
+    if ((FAT32::num_files == 0) || (index >= FAT32::num_files))
+        return false;
+
+    FAT32::file_cluster = FAT32::files[index].cluster;
+    FAT32::file_remaining = FAT32::files[index].size;
     FAT32::file_sector_offset = 0;
     FAT32::file_cluster_offset = 0;
 
