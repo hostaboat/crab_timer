@@ -581,17 +581,9 @@ bool FAT32::prev(uint16_t num_tracks)
     if ((file_size - FAT32::file_remaining) > (file_size >> 2))
         (void)NVM::write(NVM_FILE_INDEX, FAT32::file_index);
 
-    // If less than 1/8 of the file has played go to previous file
-    // otherwise rewind it.
-    if ((file_size - FAT32::file_remaining) < (file_size >> 3))
-    {
-        if (FAT32::file_index == 0)
-            FAT32::file_index = FAT32::num_files - 1;
-        else
-            FAT32::file_index--;
-
+    // If more than 1/8 of the file has played just rewind it
+    if ((file_size - FAT32::file_remaining) > (file_size >> 3))
         num_tracks--;
-    }
 
     if (num_tracks != 0)
     {
