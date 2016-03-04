@@ -43,8 +43,6 @@ class UserInterface
         void stateInit(void);
         ui_state_t getState(void);
         ui_state_t getInput(void);
-        bool CPUSleep(void);
-        bool displaySleep(void);
         bool sleep(void);
         void ledsOn(void);
         void ledsOff(void);

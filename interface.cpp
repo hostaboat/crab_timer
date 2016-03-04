@@ -195,23 +195,61 @@ ui_state_t UserInterface::getState(void)
     return _ui_state;
 }
 
-// Turns CPU clocks off saving ~44mA on MCU.
-// Additionally turns neopixel strip off saving ~7mA (it consumes about this
-// much despite having all of the pixels off).
-// If the VS1053 also gets turned off (~14mA) should get a total of ~65mA
-// savings putting things ~10mA which should be about what the LED on the
-// PowerBoost is consuming.
-bool UserInterface::CPUSleep(void)
+bool UserInterface::sleep(void)
 {
+    switch (_ui_state)
+    {
+        case UI_STATE__COUNT:
+        case UI_STATE__SET:
+        case UI_STATE__PASS:
+            break;
+
+        case UI_STATE__TIMER:
+            if (!_timer_pause)
+                return false;
+            break;
+    }
+
     if ((_encoder_turn != 0) || (_switch_state != SWITCH_STATE__NONE))
     {
         _sleep = millis();
+
+        // Treat encoder turn or switch press as a wakeup
+        // and don't process in usual way
+        if (!Display::isAwake())
+        {
+            ledsOn();
+            Display::wake();
+            return true;
+        }
+
         return false;
     }
-    else if ((millis() - _sleep) <= _sleep_time)
+    else if (!Display::isAwake() && Player::occupied())
+    {
+        // Display is asleep but Player is occupied - playing or button is pressed
+        _sleep = millis();
+        return true;
+    }
+    else if ((millis() - _sleep) < _sleep_time)
     {
         return false;
     }
+
+    // If the player is occupied just turn the leds and display off
+    if (Player::occupied())
+    {
+        ledsOff();
+        Display::standby();
+        return true;
+    }
+
+    // Turns CPU clocks off saving ~44mA on MCU.
+    // Additionally turns neopixel strip off saving ~7mA (it consumes about this
+    // much despite having all of the pixels off).
+    // If the VS1053 also gets turned off (~14mA) should get a total of ~65mA
+    // savings putting things ~10mA which should be about what the LED on the
+    // PowerBoost is consuming.
 
     LLWU::enable();
 
@@ -273,62 +311,6 @@ bool UserInterface::CPUSleep(void)
     _sleep = millis();
 
     return true;
-}
-
-bool UserInterface::displaySleep(void)
-{
-    if ((_encoder_turn != 0) || (_switch_state != SWITCH_STATE__NONE))
-    {
-        _sleep = millis();
-
-        // Treat encoder turn or switch press as a wakeup
-        // and don't process in usual way
-        if (!Display::isAwake())
-        {
-            ledsOn();
-            //FastLED.show(LED_BRIGHTNESS);
-            Display::wake();
-            return true;
-        }
-
-        return false;
-    }
-    else if (!Display::isAwake())
-    {
-        return true;
-    }
-    else if ((millis() - _sleep) > _sleep_time)
-    {
-        ledsOff();
-        //FastLED.show(0);
-        Display::standby();
-        return true;
-    }
-
-    return false;
-}
-
-bool UserInterface::sleep(void)
-{
-    switch (_ui_state)
-    {
-        case UI_STATE__COUNT:
-        case UI_STATE__SET:
-            break;
-
-        case UI_STATE__TIMER:
-            if (!_timer_pause)
-                return false;
-            break;
-
-        case UI_STATE__PASS:
-            break;
-    }
-
-    if (!Player::occupied())
-        return CPUSleep();
-    else
-        return displaySleep();
 }
 
 void UserInterface::ledsOn(void)
@@ -415,7 +397,6 @@ ui_state_t UserInterface::getInput(void)
         return UI_STATE__PASS;
     }
 
-    // Put display and leds to sleep when inactive
     if (sleep())
         return UI_STATE__PASS;
 
@@ -426,7 +407,7 @@ void UserInterface::update(void)
 {
     if (_low_battery)
     {
-        CPUSleep();
+        sleep();
         Display::lowBattery();
         return;
     }
