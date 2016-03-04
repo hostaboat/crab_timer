@@ -10,7 +10,9 @@
 #include "nvm.h"
 #include "intr.h"
 
-#define DISPLAY_INACTIVE  15000  // 15 seconds before setting it to standby
+#define SLEEP_TIME_DEFAULT  15000  // 15 seconds before sleep
+#define SLEEP_TIME_LOW_BAT   1000  // 1 second before sleep when low battery
+
 #define RESET_TIME         2000  // 2 seconds of continuous pushing of switch to reset
 
 #define LED_BRIGHTNESS   192
@@ -37,6 +39,11 @@ static volatile uint16_t s_hue = 160;
 
 // *****************************************************************************
 // Interrupt handlers
+static void encoder_rotate(void);
+static void switch_pressed(void);
+static void timer_display(void);
+static void timer_leds(void);
+
 static void encoder_rotate(void)
 {
     if (GPIO::read(PIN_ROT_ENC_SW) == HIGH)
@@ -77,7 +84,7 @@ static void switch_pressed(void)
     }
 }
 
-static void update_display(void)
+static void timer_display(void)
 {
     if (s_seconds == 0)
         return;
@@ -96,7 +103,7 @@ static void update_display(void)
     Display::time(second, minute);
 }
 
-static void update_leds(void)
+static void timer_leds(void)
 {
     if (s_hue == TIMER_HUE_MIN)
         return;
@@ -116,10 +123,11 @@ static void update_leds(void)
 // Member functions
 UserInterface::UserInterface(void)
     : _encoder_turn(0), _switch_state(SWITCH_STATE__NONE),
-      _sleep(0), _ui_state(UI_STATE__PASS), _last_ui_state(UI_STATE__PASS),
+      _sleep(0), _sleep_time(SLEEP_TIME_DEFAULT),
+      _ui_state(UI_STATE__PASS), _last_ui_state(UI_STATE__PASS),
       _total_count(0), _count(0), _default_minutes(0), _minutes(0),
       _timer_state(TIMER_STATE__INIT), _timer_pause(1),
-      _leds_on(true), _low_battery_ack(false)
+      _leds_on(true), _low_battery(false)
 {
 }
 
@@ -168,11 +176,6 @@ void UserInterface::stateInit(void)
             Display::time(0, _minutes);
             break;
 
-        case UI_STATE__LOW_BAT:
-            timerStop();
-            Player::disable();
-            break;
-
         case UI_STATE__PASS:
             break;
     }
@@ -180,12 +183,7 @@ void UserInterface::stateInit(void)
 
 ui_state_t UserInterface::getState(void)
 {
-    if (_ui_state == UI_STATE__LOW_BAT)
-        return _ui_state;
-
-    if (GPIO::read(PIN_LOW_BATT) == LOW)
-        _ui_state = UI_STATE__LOW_BAT;
-    else if (GPIO::read(PIN_ROT_SWI_A) == LOW)
+    if (GPIO::read(PIN_ROT_SWI_A) == LOW)
         _ui_state = UI_STATE__COUNT;
     else if (GPIO::read(PIN_ROT_SWI_B) == LOW)
         _ui_state = UI_STATE__SET;
@@ -210,7 +208,7 @@ bool UserInterface::CPUSleep(void)
         _sleep = millis();
         return false;
     }
-    else if ((millis() - _sleep) <= DISPLAY_INACTIVE)
+    else if ((millis() - _sleep) <= _sleep_time)
     {
         return false;
     }
@@ -299,7 +297,7 @@ bool UserInterface::displaySleep(void)
     {
         return true;
     }
-    else if ((millis() - _sleep) > DISPLAY_INACTIVE)
+    else if ((millis() - _sleep) > _sleep_time)
     {
         ledsOff();
         //FastLED.show(0);
@@ -320,11 +318,6 @@ bool UserInterface::sleep(void)
 
         case UI_STATE__TIMER:
             if (!_timer_pause)
-                return false;
-            break;
-
-        case UI_STATE__LOW_BAT:
-            if (!_low_battery_ack)
                 return false;
             break;
 
@@ -416,6 +409,12 @@ ui_state_t UserInterface::getInput(void)
         return UI_STATE__PASS;
     }
 
+    if (GPIO::read(PIN_LOW_BATT) == LOW)
+    {
+        lowBattery();
+        return UI_STATE__PASS;
+    }
+
     // Put display and leds to sleep when inactive
     if (sleep())
         return UI_STATE__PASS;
@@ -425,6 +424,13 @@ ui_state_t UserInterface::getInput(void)
 
 void UserInterface::update(void)
 {
+    if (_low_battery)
+    {
+        CPUSleep();
+        Display::lowBattery();
+        return;
+    }
+
     switch (getInput())
     {
         case UI_STATE__COUNT:
@@ -437,10 +443,6 @@ void UserInterface::update(void)
 
         case UI_STATE__TIMER:
             time();
-            break;
-
-        case UI_STATE__LOW_BAT:
-            lowBattery();
             break;
 
         case UI_STATE__PASS:
@@ -580,14 +582,14 @@ void UserInterface::time(void)
             if (switch_pressed)
                 _timer_state = TIMER_STATE__DONE;
             else
-                timerAlert();
+                timerAlert();  // Blocking until switch pressed
             break;
 
         case TIMER_STATE__DONE:
             if (switch_pressed)
             {
-                _timer_pause = 1;
                 Display::time(0, _minutes);
+                _timer_pause = 1;
                 _timer_state = TIMER_STATE__INIT;
             }  
             break;
@@ -605,8 +607,8 @@ void UserInterface::timerSet(void)
 
 void UserInterface::timerStart(void)
 {
-    _display_timer.begin(update_display, 1000000);
-    _led_timer.begin(update_leds, ((float)(_minutes * 60) / TIMER_HUE_MAX) * 1000000);
+    _display_timer.begin(timer_display, 1000000);
+    _led_timer.begin(timer_leds, ((float)(_minutes * 60) / TIMER_HUE_MAX) * 1000000);
 }
 
 void UserInterface::timerStop(void)
@@ -617,78 +619,78 @@ void UserInterface::timerStop(void)
 
 void UserInterface::timerAlert(void)
 {
-    GPIO::set(PIN_BEEPER);
-    //Display::time(0, 0);
-    Display::done();
     for (uint8_t i = 0; i < NUM_LEDS; i++)
         s_leds[i] = CRGB(255, 0, 0);
-    FastLED.show();
-    //FastLED.showColor(CRGB(255, 0, 0));
 
-    delay(500);
+    while (s_switch_state == SWITCH_STATE__NONE)
+    {
+        Display::done();
+        FastLED.show(LED_BRIGHTNESS);
+        GPIO::set(PIN_BEEPER);
 
-    GPIO::clear(PIN_BEEPER);
-    Display::blank();
+        delay(500);
+
+        Display::blank();
+        FastLED.show(0);
+        GPIO::clear(PIN_BEEPER);
+
+        delay(80);
+    }
+
     FastLED.clear(true);
-
-    delay(80);
 }
 
 void UserInterface::lowBattery(void)
 {
-    switch (_switch_state)
+    // Try lowering the volume of the player first then disable.
+    if (!Player::isDisabled())
     {
-        case SWITCH_STATE__NONE:
-        case SWITCH_STATE__DEPRESSED:
-            break;
+        uint8_t volume = Player::getVolume();
 
-        case SWITCH_STATE__SHORT_PRESS:
-        case SWITCH_STATE__LONG_PRESS:
-            _low_battery_ack = true;
-            break;
+        if (volume > PLAYER_VOLUME_MIN)
+            Player::setVolume(volume - 5);  // Decrease in small increments
+        else
+            Player::disable();
+
+        return;
     }
 
-    if (!_low_battery_ack)
-        lowBatteryAlert();
-}
+    // If player is disabled and still getting LBO, alert and set
+    // to low battery state.
 
-void UserInterface::lowBatteryAlert(void)
-{
-    static bool init = true;
-    static uint16_t minute = 0;
-    static uint16_t second = s_seconds;
-    static int timer_show = 0;
-    static int timer_state = 0;
+    timerStop();
+    FastLED.clear(true);
+    ledsOff();
 
-    if (init)
+    Display::lowBattery();
+
+    while (s_switch_state == SWITCH_STATE__NONE)
     {
-        if (second != 0)
-        {
-            timer_show = 1;
+        GPIO::set(PIN_BEEPER);
+        delay(100);
+        GPIO::clear(PIN_BEEPER);
+        delay(20);
+    }
 
-            while (second >= 60)
-            {
-                minute++;
-                second -= 60;
-            }
+    // If timer was going, set display to the time before alerting.
+    if (_timer_state == TIMER_STATE__TIMER)
+    {
+        uint16_t minute = 0;
+        uint16_t second = s_seconds;
+
+        while (second >= 60)
+        {
+            minute++;
+            second -= 60;
         }
 
-        init = false;
+        Display::time(second, minute);
+    }
+    else
+    {
+        Display::standby();
     }
 
-    GPIO::set(PIN_BEEPER);
-
-    timer_state ^= timer_show;
-
-    if (timer_state)
-        Display::time(second, minute);
-    else
-        Display::lowBattery();
-
-    delay(500);
-
-    GPIO::clear(PIN_BEEPER);
-    Display::blank();
-
-    delay(80);
+    _sleep_time = SLEEP_TIME_LOW_BAT;
+    _low_battery = true;
 }

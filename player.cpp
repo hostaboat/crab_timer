@@ -42,7 +42,6 @@ namespace Player
     void softReset(void);
     bool ready(void);
     void setClock(uint16_t val);
-    void setVolume(uint8_t l, uint8_t r);
     void set(vs1053_reg_t reg, uint16_t val);
     uint16_t get(vs1053_reg_t reg);
     void send32(uint8_t *buf);
@@ -54,6 +53,8 @@ namespace Player
 
     uint32_t cta_sci = 0;
     uint32_t cta_sdi = 0;
+
+    uint8_t volume = PLAYER_VOLUME_MAX;
 
     volatile bool disabled = false;
     volatile bool stopped = false;
@@ -203,8 +204,7 @@ void Player::reset(void)
 
     // Set CLOCKI to 3.5 x XTALI = 3.5 * 12288000 = 43008000
     Player::setClock(0x8800);
-    Player::setVolume(0, 0);   // Loudest
-    //Player::setVolume(0xFE, 0xFE);   // Mute
+    Player::setVolume(Player::volume);
 
     // CLKI / 7 = 43008000 / 7 = 6144000
     //Player::cta_sci = CTAR(6000000, 5, 24, 48);
@@ -222,7 +222,7 @@ bool Player::occupied(void)
 
 void Player::stop(void)
 {
-    if (Player::stopped)
+    if (Player::disabled || Player::stopped)
         return;
 
     GPIO::clear(PIN_AMP_SDWN);
@@ -234,7 +234,7 @@ void Player::stop(void)
 
 void Player::resume(void)
 {
-    if (!Player::stopped && !Player::paused)
+    if (Player::disabled || (!Player::stopped && !Player::paused))
         return;
 
     if (Player::stopped)
@@ -301,9 +301,22 @@ void Player::setClock(uint16_t val)
     Player::set(VS1053_CMD_CLOCKF, val);
 }
 
-void Player::setVolume(uint8_t l, uint8_t r)
+void Player::setVolume(uint8_t vol)
 {
-    Player::set(VS1053_CMD_VOL, ((uint16_t)l << 8) | (uint16_t)r);
+    // The lower the value the higher the volume, so subtract the
+    // value passed in from 255, the max uint8_t.
+    // If 1 is passed in, then the value will be: 0xFE = Mute
+    // If 0 is passed in, then the value will be:
+    //   0xFF = disable analog drivers for power savings.
+    uint16_t v = 255 - vol;
+    Player::set(VS1053_CMD_VOL, (v << 8) | v);
+    Player::volume = vol;
+}
+
+uint8_t Player::getVolume(void)
+{
+    return Player::volume;
+    //return (255 - (uint8_t)Player::get(VS1053_CMD_VOL));
 }
 
 void Player::set(vs1053_reg_t reg, uint16_t val)

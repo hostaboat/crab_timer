@@ -9,7 +9,6 @@ typedef enum _ui_state
     UI_STATE__COUNT,
     UI_STATE__SET,
     UI_STATE__TIMER,
-    UI_STATE__LOW_BAT,
     UI_STATE__PASS
 
 } ui_state_t;
@@ -65,6 +64,7 @@ class UserInterface
 
         // Timings
         unsigned long _sleep;
+        unsigned long _sleep_time;
 
         // States
         ui_state_t _ui_state;
@@ -86,7 +86,7 @@ class UserInterface
         bool _leds_on;
 
         // Low Battery state
-        bool _low_battery_ack;
+        bool _low_battery;
 
         IntervalTimer _display_timer;
         IntervalTimer _led_timer;
