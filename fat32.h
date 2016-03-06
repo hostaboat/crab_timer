@@ -10,6 +10,7 @@ namespace FAT32
     bool next(uint16_t num_tracks);
     bool rewind(void);
     int read(uint8_t** p);
+    uint32_t remaining(void);
     bool eof(void);
 };
 

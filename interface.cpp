@@ -623,6 +623,10 @@ void UserInterface::timerAlert(void)
 
 void UserInterface::lowBattery(void)
 {
+    // Give the circuit a second or two to start up.
+    if (millis() < 2000)
+        return;
+
     // Try lowering the volume of the player first then disable.
     if (!Player::isDisabled())
     {

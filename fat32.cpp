@@ -578,12 +578,12 @@ bool FAT32::prev(uint16_t num_tracks)
     uint32_t file_size = FAT32::files[FAT32::file_index].size;
 
     // If at least 1/4 of the song played save index to EEPROM
+    // and just rewind it, i.e. decrement number of tracks.
     if ((file_size - FAT32::file_remaining) > (file_size >> 2))
+    {
         (void)NVM::write(NVM_FILE_INDEX, FAT32::file_index);
-
-    // If more than 1/8 of the file has played just rewind it
-    if ((file_size - FAT32::file_remaining) > (file_size >> 3))
         num_tracks--;
+    }
 
     if (num_tracks != 0)
     {
@@ -675,6 +675,11 @@ int FAT32::read(uint8_t** p)
     FAT32::file_sector_offset += bytes;
     
     return bytes;
+}
+
+uint32_t FAT32::remaining(void)
+{
+    return FAT32::file_remaining;
 }
 
 bool FAT32::eof(void)
