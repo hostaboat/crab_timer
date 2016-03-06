@@ -561,9 +561,14 @@ void UserInterface::time(void)
 
         case TIMER_STATE__ALERT:
             if (switch_pressed)
+            {
                 _timer_state = TIMER_STATE__DONE;
+                _timer_pause = 0;
+            }
             else
+            {
                 timerAlert();  // Blocking until switch pressed
+            }
             break;
 
         case TIMER_STATE__DONE:
