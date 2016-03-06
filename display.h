@@ -6,7 +6,7 @@
 
 namespace Display
 {
-    void init(void);
+    bool init(void);
     void wake(void);
     void standby(void);
     bool isAwake(void);

@@ -138,7 +138,7 @@ void UserInterface::init(void)
 
     INTR::init();
     (void)NVM::init();
-    Display::init();
+    (void)Display::init();
     (void)Player::init();
 
     (void)INTR::attach(PIN_ROT_ENC_A, encoder_rotate, IRQC_CHANGE);

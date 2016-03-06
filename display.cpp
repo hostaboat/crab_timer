@@ -1,7 +1,7 @@
 // HT16K33 7 Segment Display **************************************************
 #include "display.h"
+#include "i2c.h"
 #include <cstdint>
-#include <Wire.h>
 
 // I2C Device Address
 #define HT16K33_DEV_ADDR    0x70
@@ -56,23 +56,26 @@ namespace Display
     };
 };
 
-void Display::init(void)
+bool Display::init(void)
 {
-    Wire.begin();
+    if (!I2C::init())
+        return false;
 
     Display::wake();
     Display::brightness(Display::blevel);
     Display::blank();
     Display::on();
+
+    return true;
 }
 
 void Display::wake(void)
 {
     if (!Display::awake)
     {
-        Wire.beginTransmission(HT16K33_DEV_ADDR);
-        Wire.write(HT16K33_WAKEUP);
-        Wire.endTransmission();
+        I2C::begin(HT16K33_DEV_ADDR);
+        I2C::write(HT16K33_WAKEUP);
+        I2C::end();
 
         Display::awake = true;
     }
@@ -82,9 +85,9 @@ void Display::standby(void)
 {
     if (Display::awake)
     {
-        Wire.beginTransmission(HT16K33_DEV_ADDR);
-        Wire.write(HT16K33_STANDBY);
-        Wire.endTransmission();
+        I2C::begin(HT16K33_DEV_ADDR);
+        I2C::write(HT16K33_STANDBY);
+        I2C::end();
 
         Display::awake = false;
     }
@@ -99,9 +102,9 @@ void Display::on(void)
 {
     if (!Display::lit)
     {
-        Wire.beginTransmission(HT16K33_DEV_ADDR);
-        Wire.write(HT16K33_ON);
-        Wire.endTransmission();
+        I2C::begin(HT16K33_DEV_ADDR);
+        I2C::write(HT16K33_ON);
+        I2C::end();
 
         Display::lit = true;
     }
@@ -111,9 +114,9 @@ void Display::off(void)
 {
     if (Display::lit)
     {
-        Wire.beginTransmission(HT16K33_DEV_ADDR);
-        Wire.write(HT16K33_OFF);
-        Wire.endTransmission();
+        I2C::begin(HT16K33_DEV_ADDR);
+        I2C::write(HT16K33_OFF);
+        I2C::end();
 
         Display::lit = false;
     }
@@ -131,9 +134,9 @@ void Display::brightness(uint8_t level)
 
     Display::blevel = level;
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(HT16K33_BRIGHTNESS_REG | level);
-    Wire.endTransmission();
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(HT16K33_BRIGHTNESS_REG | level);
+    I2C::end();
 }
 
 void Display::count(uint16_t count)
@@ -141,109 +144,109 @@ void Display::count(uint16_t count)
     if (!Display::awake)
         Display::wake();
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(0x00);  // Command code
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(0x00);  // Command code
 
     if (count > 9999)
     {
-        Wire.write(Display::number_table[9]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[9]);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[9]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[9]);
+        I2C::write(0x00);
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[9]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[9]);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[9]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[9]);
+        I2C::write(0x00);
     }
     else if (count >= 1000)
     {
-        Wire.write(Display::number_table[count / 1000]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count / 1000]);
+        I2C::write(0x00);
         count %= 1000;
 
-        Wire.write(Display::number_table[count / 100]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count / 100]);
+        I2C::write(0x00);
         count %= 100;
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[count / 10]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count / 10]);
+        I2C::write(0x00);
         count %= 10;
 
-        Wire.write(Display::number_table[count]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count]);
+        I2C::write(0x00);
     }
     else if (count >= 100)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[count / 100]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count / 100]);
+        I2C::write(0x00);
         count %= 100;
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[count / 10]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count / 10]);
+        I2C::write(0x00);
         count %= 10;
 
-        Wire.write(Display::number_table[count]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count]);
+        I2C::write(0x00);
     }
     else if (count >= 10)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[count / 10]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count / 10]);
+        I2C::write(0x00);
         count %= 10;
 
-        Wire.write(Display::number_table[count]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count]);
+        I2C::write(0x00);
     }
     else
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
 
-        Wire.write(Display::number_table[count]);
-        Wire.write(0x00);
+        I2C::write(Display::number_table[count]);
+        I2C::write(0x00);
     }
 
     // Not sure if this is necessary
     for (int i = 6; i < 8; i++)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
 
-    Wire.endTransmission();
+    I2C::end();
 
     if (!Display::lit)
         Display::on();
@@ -254,73 +257,73 @@ void Display::time(uint8_t second, uint8_t minute)
     if (!Display::awake)
         Display::wake();
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(0x00);  // Command code
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(0x00);  // Command code
 
     // First and second digits
     if (minute == 0)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
     else if (minute < 10)
     {
-        //Wire.write(Display::number_table[0]);
-        Wire.write(0x00);
-        Wire.write(0x00);
-        Wire.write(Display::number_table[minute]);
+        //I2C::write(Display::number_table[0]);
+        I2C::write(0x00);
+        I2C::write(0x00);
+        I2C::write(Display::number_table[minute]);
     }
     else if (minute < 100)
     {
-        Wire.write(Display::number_table[minute / 10]);
-        Wire.write(0x00);
-        Wire.write(Display::number_table[minute % 10]);
+        I2C::write(Display::number_table[minute / 10]);
+        I2C::write(0x00);
+        I2C::write(Display::number_table[minute % 10]);
     }
     else
     {
-        Wire.write(Display::number_table[9]);
-        Wire.write(0x00);
-        Wire.write(Display::number_table[9]);
+        I2C::write(Display::number_table[9]);
+        I2C::write(0x00);
+        I2C::write(Display::number_table[9]);
     }
 
     // For some reason 16 bits needs to be written but only need 8 bits to represent digit
-    Wire.write(0x00);
+    I2C::write(0x00);
 
     // Colon
-    Wire.write(HT16K33_COLON);
-    Wire.write(0x00);
+    I2C::write(HT16K33_COLON);
+    I2C::write(0x00);
 
     // Third and fourth digits
     if (second < 10)
     {
-        Wire.write(Display::number_table[0]);
-        Wire.write(0x00);
-        Wire.write(Display::number_table[second]);
+        I2C::write(Display::number_table[0]);
+        I2C::write(0x00);
+        I2C::write(Display::number_table[second]);
     }
     else if (second < 60)
     {
-        Wire.write(Display::number_table[second / 10]);
-        Wire.write(0x00);
-        Wire.write(Display::number_table[second % 10]);
+        I2C::write(Display::number_table[second / 10]);
+        I2C::write(0x00);
+        I2C::write(Display::number_table[second % 10]);
     }
     else
     {
-        Wire.write(Display::number_table[5]);
-        Wire.write(0x00);
-        Wire.write(Display::number_table[9]);
+        I2C::write(Display::number_table[5]);
+        I2C::write(0x00);
+        I2C::write(Display::number_table[9]);
     }
 
-    Wire.write(0x00);
+    I2C::write(0x00);
 
     // Not sure if this is necessary
     for (int i = 6; i < 8; i++)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
 
-    Wire.endTransmission();
+    I2C::end();
 
     if (!Display::lit)
         Display::on();
@@ -331,17 +334,17 @@ void Display::blank(void)
     if (!Display::awake)
         Display::wake();
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(0x00);  // Command code
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(0x00);  // Command code
 
     // Doesn't turn it off or put it in standby but just blanks it
     for (int i = 0; i < 8; i++)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
 
-    Wire.endTransmission();
+    I2C::end();
 }
 
 void Display::dashes(void)
@@ -349,23 +352,23 @@ void Display::dashes(void)
     if (!Display::awake)
         Display::wake();
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(0x00);  // Command code
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(0x00);  // Command code
 
     for (int i = 0; i < 6; i++)
     {
-        Wire.write(0x40);  // Dash
-        Wire.write(0x00);
+        I2C::write(0x40);  // Dash
+        I2C::write(0x00);
     }
 
     // Not sure if this is necessary
     for (int i = 6; i < 8; i++)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
 
-    Wire.endTransmission();
+    I2C::end();
 
     if (!Display::lit)
         Display::on();
@@ -376,37 +379,37 @@ void Display::done(void)
     if (!Display::awake)
         Display::wake();
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(0x00);  // Command code
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(0x00);  // Command code
 
     // d
-    Wire.write(0x5E);
-    Wire.write(0x00);
+    I2C::write(0x5E);
+    I2C::write(0x00);
 
     // o
-    Wire.write(0x5C);
-    Wire.write(0x00);
+    I2C::write(0x5C);
+    I2C::write(0x00);
 
     // No colon
-    Wire.write(0x00);
-    Wire.write(0x00);
+    I2C::write(0x00);
+    I2C::write(0x00);
 
     // n
-    Wire.write(0x54);
-    Wire.write(0x00);
+    I2C::write(0x54);
+    I2C::write(0x00);
 
     // E
-    Wire.write(0x79);
-    Wire.write(0x00);
+    I2C::write(0x79);
+    I2C::write(0x00);
 
     // Not sure if this is necessary
     for (int i = 6; i < 8; i++)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
 
-    Wire.endTransmission();
+    I2C::end();
 
     if (!Display::lit)
         Display::on();
@@ -417,39 +420,39 @@ void Display::lowBattery(void)
     if (!Display::awake)
         Display::wake();
 
-    Wire.beginTransmission(HT16K33_DEV_ADDR);
-    Wire.write(0x00);  // Command code
+    I2C::begin(HT16K33_DEV_ADDR);
+    I2C::write(0x00);  // Command code
 
     // L
-    Wire.write(0x38);
-    Wire.write(0x00);
+    I2C::write(0x38);
+    I2C::write(0x00);
 
     // o.
-    //Wire.write(0x5C);
-    Wire.write(0xDC);
-    Wire.write(0x00);
+    //I2C::write(0x5C);
+    I2C::write(0xDC);
+    I2C::write(0x00);
 
     // No colon
-    Wire.write(0x00);
-    Wire.write(0x00);
+    I2C::write(0x00);
+    I2C::write(0x00);
 
     // b
-    Wire.write(0x7C);
-    Wire.write(0x00);
+    I2C::write(0x7C);
+    I2C::write(0x00);
 
     // A.
-    //Wire.write(0x77);
-    Wire.write(0xF7);
-    Wire.write(0x00);
+    //I2C::write(0x77);
+    I2C::write(0xF7);
+    I2C::write(0x00);
 
     // Not sure if this is necessary
     for (int i = 6; i < 8; i++)
     {
-        Wire.write(0x00);
-        Wire.write(0x00);
+        I2C::write(0x00);
+        I2C::write(0x00);
     }
 
-    Wire.endTransmission();
+    I2C::end();
 
     if (!Display::lit)
         Display::on();
