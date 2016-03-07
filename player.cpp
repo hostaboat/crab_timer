@@ -83,7 +83,7 @@ namespace Player
     uint8_t volume = PLAYER_VOLUME_MAX;
 
     volatile bool disabled = false;
-    volatile bool stopped = false;
+    volatile bool stopped = true;
     volatile int paused = 1;
     volatile bool pause_depressed = false;
     volatile bool prev_depressed = false;
@@ -206,7 +206,6 @@ bool Player::init(void)
     INTR::attach(PIN_AUDIO_PREV, Player::prev, IRQC_CHANGE);
     INTR::attach(PIN_AUDIO_NEXT, Player::next, IRQC_CHANGE);
 
-    Player::reset(true);
     GPIO::set(PIN_AMP_SDWN);
 
     return true;

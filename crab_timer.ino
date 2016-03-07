@@ -14,7 +14,7 @@ void setup(void)
 
     // VS1053 hardware reset pin
     pinMode(PIN_AUDIO_RST, OUTPUT);
-    GPIO::set(PIN_AUDIO_RST);
+    GPIO::clear(PIN_AUDIO_RST);
 
     // Beeper
     pinMode(PIN_BEEPER, OUTPUT);

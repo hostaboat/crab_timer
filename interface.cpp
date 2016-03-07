@@ -10,10 +10,16 @@
 #include "nvm.h"
 #include "intr.h"
 
+#define RESET_TIME  2000  // 2 seconds of continuous pushing of switch to reset
+
 #define SLEEP_TIME_DEFAULT  15000  // 15 seconds before sleep
 #define SLEEP_TIME_LOW_BAT   1000  // 1 second before sleep when low battery
 
-#define RESET_TIME         2000  // 2 seconds of continuous pushing of switch to reset
+#define LLWU_LPTMR_PERIOD   60000  // 60 seconds since 1kHz LPO timer is used
+#define LLWU_LPTMR_PERIODS     15  // Wakeup from LLS 15 times before
+                                   //  disabling player - 15 minutes.
+
+#define STOP_TIME_PLAYER   (LLWU_LPTMR_PERIOD * LLWU_LPTMR_PERIODS)
 
 #define LED_BRIGHTNESS   192
 #define NUM_LEDS           8
@@ -21,9 +27,6 @@ static CRGB s_leds[NUM_LEDS];
 
 #define TIMER_HUE_MAX   160  // Start with blue hue and decrease to red hue
 #define TIMER_HUE_MIN     0  // Red hue
-
-#define LLWU_LPTMR_PERIOD   60000  // 60 seconds since 1kHz LPO timer is used
-#define LLWU_LPTMR_PERIODS     1
 
 // *****************************************************************************
 // Global variables used in interrupt handlers
@@ -206,7 +209,16 @@ bool UserInterface::sleep(void)
 
         case UI_STATE__TIMER:
             if (!_timer_pause)
+            {
+                // If timer is active can just stop player, but have to
+                // continue processing.
+                if (Player::occupied() || Player::isStopped())
+                    _sleep = millis();
+                else if ((millis() - _sleep) > STOP_TIME_PLAYER)
+                    Player::stop();
+
                 return false;
+            }
             break;
     }
 
