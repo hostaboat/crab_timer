@@ -283,7 +283,7 @@ bool UserInterface::sleep(void)
     if ((wakeup_source == WUS_TIMER) && LLWU::wakeupLPTMRDisable())
     {
         // This will turn the player off saving ~15mA more
-        Player::stop();
+        Player::disable();
         wakeup_source = LLWU::sleep();
     }
 

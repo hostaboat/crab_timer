@@ -105,9 +105,6 @@ namespace Player
 
 void Player::pause(void)
 {
-    if (Player::disabled)
-        return;
-
     static int depressed = 0;
     static unsigned long depressed_start = 0;
 
@@ -122,17 +119,12 @@ void Player::pause(void)
     {
         if ((millis() - depressed_start) < PLAYER_STOP_TIME)
         {
-            if (Player::stopped)
-            {
+            if (Player::stopped || Player::disabled)
                 Player::resume();
-            }
             else
-            {
                 Player::paused ^= 1;
-                //GPIO::toggle(PIN_AMP_SDWN);
-            }
         }
-        else if (Player::stopped)
+        else if (Player::stopped || Player::disabled)
         {
             Player::resume();
         }
@@ -261,7 +253,6 @@ void Player::stop(void)
     if (Player::disabled || Player::stopped)
         return;
 
-    //GPIO::clear(PIN_AMP_SDWN);
     GPIO::clear(PIN_AUDIO_RST);
 
     Player::stopped = true;
@@ -270,8 +261,14 @@ void Player::stop(void)
 
 void Player::resume(void)
 {
-    if (Player::disabled || (!Player::stopped && !Player::paused))
+    if (!Player::disabled && !Player::stopped && !Player::paused)
         return;
+
+    if (Player::disabled)
+    {
+        GPIO::set(PIN_AMP_SDWN);
+        Player::disabled = false;
+    }
 
     if (Player::stopped)
     {
@@ -279,11 +276,13 @@ void Player::resume(void)
         Player::stopped = false;
 
         if (!FAT32::rewind())
-            Player::disabled = true;
+        {
+            Player::disable();
+            return;
+        }
     }
 
     Player::paused = 0;
-    //GPIO::set(PIN_AMP_SDWN);
 }
 
 void Player::disable(void)
@@ -291,8 +290,10 @@ void Player::disable(void)
     if (Player::disabled)
         return;
 
+    if (!Player::stopped)
+        Player::stop();
+
     GPIO::clear(PIN_AMP_SDWN);
-    GPIO::clear(PIN_AUDIO_RST);
     Player::disabled = true;
 }
 

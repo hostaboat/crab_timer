@@ -73,6 +73,8 @@ void Display::wake(void)
 {
     if (!Display::awake)
     {
+        I2C::start();
+
         I2C::begin(HT16K33_DEV_ADDR);
         I2C::write(HT16K33_WAKEUP);
         I2C::end();
@@ -88,6 +90,8 @@ void Display::standby(void)
         I2C::begin(HT16K33_DEV_ADDR);
         I2C::write(HT16K33_STANDBY);
         I2C::end();
+
+        I2C::stop();
 
         Display::awake = false;
     }

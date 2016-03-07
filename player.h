@@ -12,8 +12,8 @@ namespace Player
     void play(void);
     bool occupied(void);
     void stop(void);
-    void resume(void);
     void disable(void);
+    void resume(void);
     bool isPaused(void);
     bool isStopped(void);
     bool isDisabled(void);
