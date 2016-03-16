@@ -6,12 +6,12 @@
 #define PIN_ROT_SWI_A    0   // Rotary Switch A
 #define PIN_ROT_SWI_B    1   // Rotary Switch B
 #define PIN_ROT_SWI_C    2   // Rotary Switch C
-#define PIN_NEOPIXEL     3   // Neopixel strip
-#define PIN_LOW_BATT     4   // PowerBoost LBO (Low Battery Output)
-#define PIN_BEEPER       5   // Beeper
-#define PIN_AUDIO_PLAY   6   // Play / Pause button
-#define PIN_AUDIO_NEXT   7   // Play next audio file button
-#define PIN_AUDIO_PREV   8   // Play previous audio file buttion
+#define PIN_AUDIO_PREV   3   // Play previous audio file buttion
+#define PIN_AUDIO_PLAY   4   // Play / Pause button
+#define PIN_AUDIO_NEXT   5   // Play next audio file button
+#define PIN_LOW_BATT     6   // PowerBoost LBO (Low Battery Output)
+#define PIN_NEOPIXEL     7   // Neopixel strip
+#define PIN_NEO_TRANS    8   // Base of transistor to turn on Neopixel strip
 #define PIN_AMP_SDWN     9   // Amplifier Shutdown
 #define PIN_AUDIO_DREQ  10   // VS1053 Data Request
 #define PIN_MOSI        11   // SPI - MOSI / DOUT
@@ -23,7 +23,7 @@
 #define PIN_AUDIO_DCS   17   // SPI - VS1053 Data Chip Select (SDI)
 #define PIN_SDA         18   // I2C - SDA  (7-Segment Display)
 #define PIN_SCL         19   // I2C - SCL  (7-Segment Display)
-#define PIN_NEO_TRANS   20   // Base of transistor to turn on Neopixel strip
+#define PIN_BEEPER      20   // Beeper
 #define PIN_ROT_ENC_SW  21   // Rotary Encoder Switch
 #define PIN_ROT_ENC_A   22   // Rotary Encoder A
 #define PIN_ROT_ENC_B   23   // Rotary Encoder B
