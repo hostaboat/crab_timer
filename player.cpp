@@ -108,6 +108,9 @@ void Player::pause(void)
     static int depressed = 0;
     static unsigned long depressed_start = 0;
 
+    if (Player::disabled)
+        return;
+
     depressed ^= 1;
 
     if (depressed)
@@ -119,12 +122,12 @@ void Player::pause(void)
     {
         if ((millis() - depressed_start) < PLAYER_STOP_TIME)
         {
-            if (Player::stopped || Player::disabled)
+            if (Player::stopped)
                 Player::resume();
             else
                 Player::paused ^= 1;
         }
-        else if (Player::stopped || Player::disabled)
+        else if (Player::stopped)
         {
             Player::resume();
         }
@@ -206,8 +209,6 @@ bool Player::init(void)
     INTR::attach(PIN_AUDIO_PREV, Player::prev, IRQC_CHANGE);
     INTR::attach(PIN_AUDIO_NEXT, Player::next, IRQC_CHANGE);
 
-    GPIO::set(PIN_AMP_SDWN);
-
     return true;
 }
 
@@ -252,6 +253,7 @@ void Player::stop(void)
     if (Player::disabled || Player::stopped)
         return;
 
+    GPIO::clear(PIN_AMP_SDWN);
     GPIO::clear(PIN_AUDIO_RST);
 
     Player::stopped = true;
@@ -260,25 +262,19 @@ void Player::stop(void)
 
 void Player::resume(void)
 {
-    if (!Player::disabled && !Player::stopped && !Player::paused)
+    if (Player::disabled || (!Player::stopped && !Player::paused))
         return;
-
-    if (Player::disabled)
-    {
-        GPIO::set(PIN_AMP_SDWN);
-        Player::disabled = false;
-    }
 
     if (Player::stopped)
     {
-        Player::reset(true);
-        Player::stopped = false;
-
         if (!FAT32::rewind())
         {
             Player::disable();
             return;
         }
+
+        Player::reset(true);
+        Player::stopped = false;
     }
 
     Player::paused = 0;
@@ -292,7 +288,6 @@ void Player::disable(void)
     if (!Player::stopped)
         Player::stop();
 
-    GPIO::clear(PIN_AMP_SDWN);
     Player::disabled = true;
 }
 
@@ -316,7 +311,9 @@ void Player::hardReset(void)
     GPIO::clear(PIN_AUDIO_RST);
     delay(100);
     GPIO::set(PIN_AUDIO_RST);
-    delay(5);  // Datasheet says about a 1.8 ms delay before DREQ goes back up
+    //delay(5);  // Datasheet says about a 1.8 ms delay before DREQ goes back up
+    delay(350);  // Helps prevent speaker pop
+    GPIO::set(PIN_AMP_SDWN);
 }
 
 void Player::softReset(void)
