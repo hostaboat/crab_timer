@@ -22,7 +22,7 @@
 #define STOP_TIME_PLAYER   (LLWU_LPTMR_PERIOD * LLWU_LPTMR_PERIODS)
 
 #define LED_BRIGHTNESS   192
-#define NUM_LEDS           8
+#define NUM_LEDS          16
 static CRGB s_leds[NUM_LEDS];
 
 #define TIMER_HUE_MAX   160  // Start with blue hue and decrease to red hue
