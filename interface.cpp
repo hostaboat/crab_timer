@@ -31,6 +31,10 @@ static CRGB s_leds[NUM_LEDS];
 // *****************************************************************************
 // Global variables used in interrupt handlers
 static volatile int8_t s_encoder_turn = 0;
+static volatile int8_t s_encoder_state = 0;
+// Upper and lower are used to normalize initial state of encoder
+static volatile int8_t s_encoder_upper = 0;
+static volatile int8_t s_encoder_lower = 0;
 static volatile switch_state_t s_switch_state = SWITCH_STATE__NONE;
 static volatile uint32_t s_switch_depressed;
 
@@ -52,18 +56,54 @@ static void encoder_rotate(void)
     if (GPIO::read(PIN_ROT_ENC_SW) == HIGH)
         return;
 
-    static int last = 0;
+    static const uint8_t num_transitions = 4;
+    static int8_t inc = 0;
+    uint8_t a = GPIO::read(PIN_ROT_ENC_A);
+    uint8_t b = GPIO::read(PIN_ROT_ENC_B);
 
-    if (GPIO::read(PIN_ROT_ENC_A) != GPIO::read(PIN_ROT_ENC_B))
+    switch (s_encoder_state)
     {
-        // This is so a turn in the opposite direction isn't too sudden
-        s_encoder_turn = (last == -1) ? 0 : 1;
-        last = 1;
+        case 0:
+        case 2:
+            inc = (a == HIGH) ? (inc + 1) : (inc - 1);
+            break;
+
+        case 1:
+        case 3:
+            inc = (a == LOW) ? (inc + 1) : (inc - 1);
+            break;
+
+        default:
+            break;
     }
-    else
+
+    s_encoder_state = (a << 1) | b;
+
+    // Since initial encoder state might not be zero these are used to
+    // normalize encoder so that zero is the nominal state.  Once
+    // reached encoder is normalized and they are not needed.
+    if (s_encoder_upper || s_encoder_lower)
     {
-        s_encoder_turn = (last == 1) ? 0 : -1;
-        last = -1;
+        if ((inc != s_encoder_upper) && (inc != s_encoder_lower))
+            return;
+
+        if (inc == s_encoder_upper)
+            inc = num_transitions;
+        else
+            inc = -num_transitions;
+
+        s_encoder_upper = s_encoder_lower = 0;
+    }
+
+    if (inc == num_transitions)
+    {
+        s_encoder_turn = 1;
+        inc = 0;
+    }
+    else if (inc == -num_transitions)
+    {
+        s_encoder_turn = -1;
+        inc = 0;
     }
 }
 
@@ -144,12 +184,49 @@ void UserInterface::init(void)
     (void)Display::init();
     (void)Player::init();
 
+    encoderInit();
+
     (void)INTR::attach(PIN_ROT_ENC_A, encoder_rotate, IRQC_CHANGE);
+    (void)INTR::attach(PIN_ROT_ENC_B, encoder_rotate, IRQC_CHANGE);
     (void)INTR::attach(PIN_ROT_ENC_SW, switch_pressed, IRQC_CHANGE);
 
     (void)NVM::read16(NVM_COUNT_INDEX, _total_count);
     (void)NVM::read16(NVM_TIME_INDEX, _default_minutes);
     _minutes = _default_minutes;
+}
+
+void UserInterface::encoderInit(void)
+{
+    // Since initial state of the encoder may not be in the nominal position
+    // of both reading zero, need to set initial number of transitions
+    // before a turn is counted.
+    s_encoder_state = (GPIO::read(PIN_ROT_ENC_A) << 1) | GPIO::read(PIN_ROT_ENC_B);
+
+    switch (s_encoder_state)
+    {
+        case 0:
+            s_encoder_upper = 4;
+            s_encoder_lower = -4;
+            break;
+
+        case 1:
+            s_encoder_upper = 5;
+            s_encoder_lower = -3;
+            break;
+
+        case 2:
+            s_encoder_upper = 3;
+            s_encoder_lower = -5;
+            break;
+
+        case 3:
+            s_encoder_upper = 6;
+            s_encoder_lower = -6;
+            break;
+
+        default:
+            break;
+    }
 }
 
 void UserInterface::stateInit(void)

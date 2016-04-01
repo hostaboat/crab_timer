@@ -41,6 +41,7 @@ class UserInterface
     private:
         // Functions
         void stateInit(void);
+        void encoderInit(void);
         ui_state_t getState(void);
         ui_state_t getInput(void);
         bool sleep(void);
