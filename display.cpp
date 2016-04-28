@@ -23,9 +23,9 @@
 #define HT16K33_OFF               HT16K33_DISPLAY_SETUP_REG | HT16K33_DISPLAY_OFF | HT16K33_BLINK_OFF
 
 #define HT16K33_BRIGHTNESS_REG  0xE0 
-#define HT16K33_MAX_BRIGHTNESS  0x0F
-#define HT16K33_MID_BRIGHTNESS  0x07
-#define HT16K33_LOW_BRIGHTNESS  0x00
+#define HT16K33_MIN_BRIGHTNESS  DISPLAY_MIN_BRIGHTNESS
+#define HT16K33_MID_BRIGHTNESS  DISPLAY_MID_BRIGHTNESS
+#define HT16K33_MAX_BRIGHTNESS  DISPLAY_MAX_BRIGHTNESS
 
 #define HT16K33_COLON  0x02
 
@@ -56,10 +56,15 @@ namespace Display
     };
 };
 
-bool Display::init(void)
+bool Display::init(uint8_t brightness)
 {
     if (!I2C::init())
         return false;
+
+    if (brightness > HT16K33_MAX_BRIGHTNESS)
+        brightness = HT16K33_MAX_BRIGHTNESS;
+
+    Display::blevel = brightness;
 
     Display::wake();
     Display::brightness(Display::blevel);
@@ -73,6 +78,7 @@ void Display::wake(void)
 {
     if (!Display::awake)
     {
+        // Have to turn the I2C module back on
         I2C::start();
 
         I2C::begin(HT16K33_DEV_ADDR);
@@ -91,6 +97,7 @@ void Display::standby(void)
         I2C::write(HT16K33_STANDBY);
         I2C::end();
 
+        // This saves some power by turning the I2C module off
         I2C::stop();
 
         Display::awake = false;
@@ -106,6 +113,8 @@ void Display::on(void)
 {
     if (!Display::lit)
     {
+        Display::wake();
+
         I2C::begin(HT16K33_DEV_ADDR);
         I2C::write(HT16K33_ON);
         I2C::end();
@@ -118,6 +127,8 @@ void Display::off(void)
 {
     if (Display::lit)
     {
+        Display::wake();
+
         I2C::begin(HT16K33_DEV_ADDR);
         I2C::write(HT16K33_OFF);
         I2C::end();
@@ -131,8 +142,46 @@ bool Display::isOn(void)
     return Display::lit;
 }
 
+void Display::up(void)
+{
+    Display::wake();
+
+    if (Display::blevel == HT16K33_MAX_BRIGHTNESS)
+        return;
+
+    if (!Display::isOn())
+    {
+        Display::on();
+        return;
+    }
+
+    Display::blevel++;
+
+    Display::brightness(Display::blevel);
+}
+
+void Display::down(void)
+{
+    Display::wake();
+
+    if (!Display::isOn())
+        return;
+
+    if (Display::blevel == HT16K33_MIN_BRIGHTNESS)
+    {
+        Display::off();
+        return;
+    }
+
+    Display::blevel--;
+
+    Display::brightness(Display::blevel);
+}
+
 void Display::brightness(uint8_t level)
 {
+    Display::wake();
+
     if (level > HT16K33_MAX_BRIGHTNESS)
         level = HT16K33_MAX_BRIGHTNESS;
 
@@ -145,8 +194,7 @@ void Display::brightness(uint8_t level)
 
 void Display::count(uint16_t count)
 {
-    if (!Display::awake)
-        Display::wake();
+    Display::wake();
 
     I2C::begin(HT16K33_DEV_ADDR);
     I2C::write(0x00);  // Command code
@@ -258,8 +306,7 @@ void Display::count(uint16_t count)
 
 void Display::time(uint8_t second, uint8_t minute)
 {
-    if (!Display::awake)
-        Display::wake();
+    Display::wake();
 
     I2C::begin(HT16K33_DEV_ADDR);
     I2C::write(0x00);  // Command code
@@ -335,8 +382,7 @@ void Display::time(uint8_t second, uint8_t minute)
 
 void Display::blank(void)
 {
-    if (!Display::awake)
-        Display::wake();
+    Display::wake();
 
     I2C::begin(HT16K33_DEV_ADDR);
     I2C::write(0x00);  // Command code
@@ -353,8 +399,7 @@ void Display::blank(void)
 
 void Display::dashes(void)
 {
-    if (!Display::awake)
-        Display::wake();
+    Display::wake();
 
     I2C::begin(HT16K33_DEV_ADDR);
     I2C::write(0x00);  // Command code
@@ -380,8 +425,7 @@ void Display::dashes(void)
 
 void Display::done(void)
 {
-    if (!Display::awake)
-        Display::wake();
+    Display::wake();
 
     I2C::begin(HT16K33_DEV_ADDR);
     I2C::write(0x00);  // Command code
@@ -421,8 +465,7 @@ void Display::done(void)
 
 void Display::lowBattery(void)
 {
-    if (!Display::awake)
-        Display::wake();
+    Display::wake();
 
     I2C::begin(HT16K33_DEV_ADDR);
     I2C::write(0x00);  // Command code
@@ -461,4 +504,3 @@ void Display::lowBattery(void)
     if (!Display::lit)
         Display::on();
 }
-

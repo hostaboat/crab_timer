@@ -13,7 +13,6 @@
 #define RESET_TIME  2000  // 2 seconds of continuous pushing of switch to reset
 
 #define SLEEP_TIME_DEFAULT  15000  // 15 seconds before sleep
-#define SLEEP_TIME_LOW_BAT   1000  // 1 second before sleep when low battery
 
 #define LLWU_LPTMR_PERIOD   60000  // 60 seconds since 1kHz LPO timer is used
 #define LLWU_LPTMR_PERIODS     15  // Wakeup from LLS 15 times before
@@ -21,7 +20,7 @@
 
 #define STOP_TIME_PLAYER   (LLWU_LPTMR_PERIOD * LLWU_LPTMR_PERIODS)
 
-#define LED_BRIGHTNESS   192
+#define LED_BRIGHTNESS   128
 #define NUM_LEDS          16
 static CRGB s_leds[NUM_LEDS];
 
@@ -39,7 +38,8 @@ static volatile switch_state_t s_switch_state = SWITCH_STATE__NONE;
 static volatile uint32_t s_switch_depressed;
 
 static volatile uint16_t s_seconds = 0;
-static volatile uint16_t s_hue = 160;
+static volatile uint8_t s_hue = 160;
+static volatile uint8_t s_brightness = LED_BRIGHTNESS;
 
 // *****************************************************************************
 
@@ -50,6 +50,7 @@ static void encoder_rotate(void);
 static void switch_pressed(void);
 static void timer_display(void);
 static void timer_leds(void);
+static void encoder_brightness(void);
 
 static void encoder_rotate(void)
 {
@@ -156,7 +157,36 @@ static void timer_leds(void)
     for (uint8_t i = 0; i < NUM_LEDS; i++)
         s_leds[i] = CHSV(s_hue, 255, 255);
     FastLED.show();
-    //FastLED.showColor(CHSV(s_hue, 255, 255));
+}
+
+static void encoder_brightness(void)
+{
+    if (GPIO::read(PIN_ROT_ENC_BR_A) != GPIO::read(PIN_ROT_ENC_BR_B))
+    {
+        if (s_brightness == 255)
+            return;
+
+        s_brightness++;
+
+        if (((s_brightness % 16) == 0) || (s_brightness == 255))
+            Display::up();
+
+        FastLED.setBrightness(s_brightness);
+        FastLED.show();
+    }
+    else
+    {
+        if (s_brightness == 0)
+            return;
+
+        s_brightness--;
+
+        if ((s_brightness % 16) == 0)
+            Display::down();
+
+        FastLED.setBrightness(s_brightness);
+        FastLED.show();
+    }
 }
 
 // *****************************************************************************
@@ -170,18 +200,18 @@ UserInterface::UserInterface(void)
       _ui_state(UI_STATE__PASS), _last_ui_state(UI_STATE__PASS),
       _total_count(0), _count(0), _default_minutes(0), _minutes(0),
       _timer_state(TIMER_STATE__INIT), _timer_pause(1),
-      _leds_on(true), _low_battery(false)
+      _leds_on(true)
 {
 }
 
 void UserInterface::init(void)
 {
     FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(s_leds, NUM_LEDS);
-    FastLED.setBrightness(LED_BRIGHTNESS);
+    FastLED.setBrightness(s_brightness);
 
     INTR::init();
     (void)NVM::init();
-    (void)Display::init();
+    (void)Display::init(DISPLAY_MID_BRIGHTNESS);
     (void)Player::init();
 
     encoderInit();
@@ -189,6 +219,8 @@ void UserInterface::init(void)
     (void)INTR::attach(PIN_ROT_ENC_A, encoder_rotate, IRQC_CHANGE);
     (void)INTR::attach(PIN_ROT_ENC_B, encoder_rotate, IRQC_CHANGE);
     (void)INTR::attach(PIN_ROT_ENC_SW, switch_pressed, IRQC_CHANGE);
+
+    (void)INTR::attach(PIN_ROT_ENC_BR_A, encoder_brightness, IRQC_CHANGE);
 
     (void)NVM::read16(NVM_COUNT_INDEX, _total_count);
     (void)NVM::read16(NVM_TIME_INDEX, _default_minutes);
@@ -308,7 +340,6 @@ bool UserInterface::sleep(void)
         if (!Display::isAwake())
         {
             ledsOn();
-            Display::wake();
             return true;
         }
 
@@ -329,21 +360,20 @@ bool UserInterface::sleep(void)
     if (Player::occupied())
     {
         ledsOff();
-        Display::standby();
         return true;
     }
 
     // Turns CPU clocks off saving ~44mA on MCU.
-    // Additionally turns neopixel strip off saving ~7mA (it consumes about this
-    // much despite having all of the pixels off).
-    // If the VS1053 also gets turned off (~14mA) should get a total of ~65mA
-    // savings putting things ~10mA which should be about what the LED on the
-    // PowerBoost is consuming.
+    // If the VS1053 also gets turned off (~14mA) should get a total of ~58mA
+    // savings putting things ~17mA which should be about what the LED on the
+    // PowerBoost is consuming and the Neopixel strip which despite being "off"
+    // still consumes ~7mA.
 
     LLWU::enable();
 
     if (!LLWU::wakeupPinEnable(PIN_ROT_ENC_SW, WUPE_RISING)
             || !LLWU::wakeupPinEnable(PIN_ROT_ENC_A, WUPE_CHANGE)
+            || !LLWU::wakeupPinEnable(PIN_ROT_ENC_BR_A, WUPE_CHANGE)
             || !LLWU::wakeupPinEnable(PIN_AUDIO_PLAY, WUPE_RISING)
             || !LLWU::wakeupLPTMREnable(LLWU_LPTMR_PERIOD))
     {
@@ -354,7 +384,6 @@ bool UserInterface::sleep(void)
     INTR::suspend();
 
     ledsOff();
-    Display::standby();
 
     wus_t wakeup_source;
     int8_t wakeup_pin = -1;
@@ -388,14 +417,9 @@ bool UserInterface::sleep(void)
     INTR::resume();
 
     if (wakeup_pin == PIN_AUDIO_PLAY)
-    {
         Player::resume();
-    }
     else
-    {
         ledsOn();
-        Display::wake();
-    }
 
     _sleep = millis();
 
@@ -407,9 +431,8 @@ void UserInterface::ledsOn(void)
     if (_leds_on)
         return;
 
-    GPIO::set(PIN_NEO_TRANS);
-    delay(10);
-    FastLED.show(LED_BRIGHTNESS);
+    Display::wake();
+    FastLED.show(s_brightness);
 
     _leds_on = true;
 }
@@ -419,9 +442,8 @@ void UserInterface::ledsOff(void)
     if (!_leds_on)
         return;
 
+    Display::standby();
     FastLED.show(0);
-    delay(10);
-    GPIO::clear(PIN_NEO_TRANS);
 
     _leds_on = false;
 }
@@ -480,12 +502,6 @@ ui_state_t UserInterface::getInput(void)
         return UI_STATE__PASS;
     }
 
-    if (GPIO::read(PIN_LOW_BATT) == LOW)
-    {
-        lowBattery();
-        return UI_STATE__PASS;
-    }
-
     if (sleep())
         return UI_STATE__PASS;
 
@@ -494,13 +510,6 @@ ui_state_t UserInterface::getInput(void)
 
 void UserInterface::update(void)
 {
-    if (_low_battery)
-    {
-        sleep();
-        Display::lowBattery();
-        return;
-    }
-
     switch (getInput())
     {
         case UI_STATE__COUNT:
@@ -700,7 +709,7 @@ void UserInterface::timerAlert(void)
     while (s_switch_state == SWITCH_STATE__NONE)
     {
         Display::done();
-        FastLED.show(LED_BRIGHTNESS);
+        FastLED.show(s_brightness);
         GPIO::set(PIN_BEEPER);
 
         delay(500);
@@ -713,63 +722,4 @@ void UserInterface::timerAlert(void)
     }
 
     FastLED.clear(true);
-}
-
-void UserInterface::lowBattery(void)
-{
-    // Give the circuit a second or two to start up.
-    if (millis() < 2000)
-        return;
-
-    // Try lowering the volume of the player first then disable.
-    if (!Player::isDisabled())
-    {
-        uint8_t volume = Player::getVolume();
-
-        if (volume > PLAYER_VOLUME_MIN)
-            Player::setVolume(volume - 5);  // Decrease in small increments
-        else
-            Player::disable();
-
-        return;
-    }
-
-    // If player is disabled and still getting LBO, alert and set
-    // to low battery state.
-
-    timerStop();
-    FastLED.clear(true);
-    ledsOff();
-
-    Display::lowBattery();
-
-    while (s_switch_state == SWITCH_STATE__NONE)
-    {
-        GPIO::set(PIN_BEEPER);
-        delay(100);
-        GPIO::clear(PIN_BEEPER);
-        delay(20);
-    }
-
-    // If timer was going, set display to the time before alerting.
-    if (_timer_state == TIMER_STATE__TIMER)
-    {
-        uint16_t minute = 0;
-        uint16_t second = s_seconds;
-
-        while (second >= 60)
-        {
-            minute++;
-            second -= 60;
-        }
-
-        Display::time(second, minute);
-    }
-    else
-    {
-        Display::standby();
-    }
-
-    _sleep_time = SLEEP_TIME_LOW_BAT;
-    _low_battery = true;
 }

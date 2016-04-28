@@ -54,8 +54,6 @@ class UserInterface
         void timerStart(void);
         void timerStop(void);
         void timerAlert(void);
-        void lowBattery(void);
-        void lowBatteryAlert(void);
 
         // Actions
         int8_t _encoder_turn;
@@ -81,11 +79,9 @@ class UserInterface
         timer_state_t _timer_state;
         uint8_t _timer_pause;
 
-        // Neopixel on state
+        // Leds on state and brightness
         bool _leds_on;
-
-        // Low Battery state
-        bool _low_battery;
+        uint8_t _brightness;
 
         IntervalTimer _display_timer;
         IntervalTimer _led_timer;

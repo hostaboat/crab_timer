@@ -20,10 +20,6 @@ void setup(void)
     pinMode(PIN_BEEPER, OUTPUT);
     GPIO::clear(PIN_BEEPER);
 
-    // Neopixel base transistor switch
-    pinMode(PIN_NEO_TRANS, OUTPUT);
-    GPIO::set(PIN_NEO_TRANS);
-
     //////////////////////////////////////
     // SPI Chip select pins //////////////
     //////////////////////////////////////
@@ -46,8 +42,9 @@ void setup(void)
     pinMode(PIN_AUDIO_NEXT, INPUT_PULLUP);
     pinMode(PIN_AUDIO_PREV, INPUT_PULLUP);
 
-    // PowerBoost LBO - Low Battery Output
-    pinMode(PIN_LOW_BATT, INPUT);
+    // Rotary encoder for brightness
+    pinMode(PIN_ROT_ENC_BR_A, INPUT_PULLUP);
+    pinMode(PIN_ROT_ENC_BR_B, INPUT_PULLUP);
 
     // Rotary encoder and push switch
     pinMode(PIN_ROT_ENC_A, INPUT_PULLUP);
