@@ -14,6 +14,7 @@ namespace Display
     void wake(void);
     void standby(void);
     bool isAwake(void);
+    bool isBusy(void);
     void on(void);
     void off(void);
     bool isOn(void);

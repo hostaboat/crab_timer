@@ -144,6 +144,9 @@ static void timer_display(void)
         second -= 60;
     }
 
+    if (!Display::isOn())
+        return;
+
     Display::time(second, minute);
 }
 
@@ -156,11 +159,18 @@ static void timer_leds(void)
 
     for (uint8_t i = 0; i < NUM_LEDS; i++)
         s_leds[i] = CHSV(s_hue, 255, 255);
+
+    if (s_brightness == 0)
+        return;
+
     FastLED.show();
 }
 
 static void encoder_brightness(void)
 {
+    if (Display::isBusy())
+        return;
+
     if (GPIO::read(PIN_ROT_ENC_BR_A) != GPIO::read(PIN_ROT_ENC_BR_B))
     {
         if (s_brightness == 255)

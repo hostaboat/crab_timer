@@ -14,7 +14,8 @@ namespace I2C
     void start(void);
     void stop(void);
     bool running(void);
-    void begin(uint8_t slave_addr);
+    bool isBusy(void);
+    bool begin(uint8_t slave_addr);
     bool write(uint8_t data);
     bool end(void);
 };

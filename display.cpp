@@ -109,6 +109,11 @@ bool Display::isAwake(void)
     return Display::awake;
 }
 
+bool Display::isBusy(void)
+{
+    return I2C::isBusy();
+}
+
 void Display::on(void)
 {
     if (!Display::lit)

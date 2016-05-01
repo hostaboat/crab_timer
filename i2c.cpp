@@ -8,6 +8,7 @@ namespace I2C
 {
     uint8_t tx_buffer[128];
     uint8_t tx_length = 0;
+    bool busy = false;
 
     void setClock(uint32_t frequency);
 };
@@ -81,10 +82,22 @@ bool I2C::running(void)
     return (I2C0_C1 & I2C_C1_IICEN);
 }
 
-void I2C::begin(uint8_t slave_addr)
+bool I2C::isBusy(void)
 {
+    return I2C::busy;
+}
+
+bool I2C::begin(uint8_t slave_addr)
+{
+    if (I2C::busy)
+        return false;
+
+    I2C::busy = true;
+
     I2C::tx_buffer[0] = (slave_addr << 1);
     I2C::tx_length = 1;
+
+    return true;
 }
 
 bool I2C::write(uint8_t data)
@@ -100,7 +113,10 @@ bool I2C::write(uint8_t data)
 bool I2C::end(void)
 {
     if (I2C::tx_length == 0)
+    {
+        I2C::busy = false;
         return false;
+    }
 
     uint8_t tx_len = I2C::tx_length;
 
@@ -134,6 +150,7 @@ bool I2C::end(void)
             if (retries == 0)
             {
                 I2C0_C1 &= ~I2C_C1_MST;
+                I2C::busy = false;
                 return false;
             }
             else
@@ -144,6 +161,7 @@ bool I2C::end(void)
         }
     }
 
+    I2C::busy = false;
     return true;
 }
 
