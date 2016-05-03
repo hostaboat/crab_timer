@@ -210,7 +210,7 @@ UserInterface::UserInterface(void)
       _ui_state(UI_STATE__PASS), _last_ui_state(UI_STATE__PASS),
       _total_count(0), _count(0), _default_minutes(0), _minutes(0),
       _timer_state(TIMER_STATE__INIT), _timer_pause(1),
-      _leds_on(true)
+      _brightness(s_brightness)
 {
 }
 
@@ -319,6 +319,8 @@ ui_state_t UserInterface::getState(void)
 
 bool UserInterface::sleep(void)
 {
+    static uint8_t brightness = 0;
+
     switch (_ui_state)
     {
         case UI_STATE__COUNT:
@@ -349,9 +351,17 @@ bool UserInterface::sleep(void)
         // and don't process in usual way
         if (!Display::isAwake())
         {
-            ledsOn();
+            Display::wake();
+            FastLED.show(s_brightness);
             return true;
         }
+
+        return false;
+    }
+    else if (brightness != _brightness)
+    {
+        brightness = _brightness;
+        _sleep = millis();
 
         return false;
     }
@@ -369,7 +379,8 @@ bool UserInterface::sleep(void)
     // If the player is occupied just turn the leds and display off
     if (Player::occupied())
     {
-        ledsOff();
+        Display::standby();
+        FastLED.show(0);
         return true;
     }
 
@@ -393,7 +404,8 @@ bool UserInterface::sleep(void)
 
     INTR::suspend();
 
-    ledsOff();
+    Display::standby();
+    FastLED.show(0);
 
     wus_t wakeup_source;
     int8_t wakeup_pin = -1;
@@ -427,35 +439,18 @@ bool UserInterface::sleep(void)
     INTR::resume();
 
     if (wakeup_pin == PIN_AUDIO_PLAY)
+    {
         Player::resume();
+    }
     else
-        ledsOn();
+    {
+        Display::wake();
+        FastLED.show(s_brightness);
+    }
 
     _sleep = millis();
 
     return true;
-}
-
-void UserInterface::ledsOn(void)
-{
-    if (_leds_on)
-        return;
-
-    Display::wake();
-    FastLED.show(s_brightness);
-
-    _leds_on = true;
-}
-
-void UserInterface::ledsOff(void)
-{
-    if (!_leds_on)
-        return;
-
-    Display::standby();
-    FastLED.show(0);
-
-    _leds_on = false;
 }
 
 ui_state_t UserInterface::getInput(void)
@@ -483,6 +478,10 @@ ui_state_t UserInterface::getInput(void)
         _encoder_turn = s_encoder_turn;
         s_encoder_turn = 0;
         s_switch_state = SWITCH_STATE__NONE;
+    }
+    else if (s_brightness != _brightness)
+    {
+        _brightness = s_brightness;
     }
 
     interrupts();

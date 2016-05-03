@@ -45,8 +45,6 @@ class UserInterface
         ui_state_t getState(void);
         ui_state_t getInput(void);
         bool sleep(void);
-        void ledsOn(void);
-        void ledsOff(void);
         void count(void);
         void set(void);
         void time(void);
@@ -79,8 +77,7 @@ class UserInterface
         timer_state_t _timer_state;
         uint8_t _timer_pause;
 
-        // Leds on state and brightness
-        bool _leds_on;
+        // Display and LEDs brightness
         uint8_t _brightness;
 
         IntervalTimer _display_timer;
