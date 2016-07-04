@@ -4,7 +4,7 @@ Arduino will want to include in the compilation but won't compile since it's for
 a different target MCU.
 
 So when cloning for use with the Arduino environment, have to exclude the
-ATtiny13A directory.  Internet searches usually to pointed to the following
+ATtiny13A directory.  Internet searches usually pointed to the following
 which seems to work.
 
 $ cd ~/Documents/Arduino
