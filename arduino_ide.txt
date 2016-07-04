@@ -1,0 +1,22 @@
+Since I'm using the Arduino IDE with Teensyduino to compile and push code to the
+Teensy 3.2, the ATtiny13A directory can't be present since it has a .c file that
+Arduino will want to include in the compilation but won't compile since it's for
+a different target MCU.
+
+So when cloning for use with the Arduino environment, have to exclude the
+ATtiny13A directory.  Internet searches usually to pointed to the following
+which seems to work.
+
+$ cd ~/Documents/Arduino
+$ mkdir crab_timer
+$ cd crab_timer
+$ git init
+$ git remote add -f crab_timer file:///Volumes/PP2/code/crab_timer.git
+$ git config core.sparseCheckout true
+$ vim .git/info/sparse-checkout
+
+Add the following lines:
+/*
+!ATtiny13A
+
+$ git pull file:///Volumes/PP2/code/crab_timer.git
