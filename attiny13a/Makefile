@@ -33,7 +33,7 @@ $(PRG).elf: $(OBJ)
 lbo.o: lbo.c
 
 clean:
-	rm -rf *.o $(PRG).elf *.eps *.png *.pdf *.bak 
+	rm -rf *.o $(PRG).elf *.eps *.png *.pdf *.bak
 	rm -rf *.lst *.map $(EXTRA_CLEAN_FILES)
 
 lst:  $(PRG).lst
