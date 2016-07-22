@@ -9,9 +9,9 @@
 #define PIN_AUDIO_PREV   3   // Play previous audio file buttion
 #define PIN_AUDIO_PLAY   4   // Play / Pause button
 #define PIN_AUDIO_NEXT   5   // Play next audio file button
-#define PIN_NEOPIXEL     6   // Neopixel strip
-#define PIN_ROT_ENC_BR_A 7   // Rotary Encoder A - Brightness
-#define PIN_ROT_ENC_BR_B 8   // Rotary Encoder B - Brightness
+#define PIN_ROT_ENC_BR_A 6   // Rotary Encoder A - Brightness
+#define PIN_ROT_ENC_BR_B 7   // Rotary Encoder B - Brightness
+#define PIN_NEOPIXEL     8   // Neopixel strip
 #define PIN_AMP_SDWN     9   // Amplifier Shutdown
 #define PIN_AUDIO_DREQ  10   // VS1053 Data Request
 #define PIN_MOSI        11   // SPI - MOSI / DOUT
