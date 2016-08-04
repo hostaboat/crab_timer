@@ -305,11 +305,11 @@ void UserInterface::stateInit(void)
 
 ui_state_t UserInterface::getState(void)
 {
-    if (GPIO::read(PIN_ROT_SWI_A) == LOW)
+    if (GPIO::read(PIN_ROT_SWI_3) == LOW)
         _ui_state = UI_STATE__COUNT;
-    else if (GPIO::read(PIN_ROT_SWI_B) == LOW)
+    else if (GPIO::read(PIN_ROT_SWI_1) == LOW)
         _ui_state = UI_STATE__SET;
-    else if (GPIO::read(PIN_ROT_SWI_C) == LOW)
+    else if (GPIO::read(PIN_ROT_SWI_2) == LOW)
         _ui_state = UI_STATE__TIMER;
     else
         _ui_state = UI_STATE__PASS;

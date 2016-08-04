@@ -52,9 +52,9 @@ void setup(void)
     pinMode(PIN_ROT_ENC_SW, INPUT);
 
     // Rotary switch
-    pinMode(PIN_ROT_SWI_A, INPUT_PULLUP);
-    pinMode(PIN_ROT_SWI_B, INPUT_PULLUP);
-    pinMode(PIN_ROT_SWI_C, INPUT_PULLUP);
+    pinMode(PIN_ROT_SWI_1, INPUT_PULLUP);
+    pinMode(PIN_ROT_SWI_2, INPUT_PULLUP);
+    pinMode(PIN_ROT_SWI_3, INPUT_PULLUP);
 
     s_interface.init();
 }

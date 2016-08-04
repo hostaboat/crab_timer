@@ -3,9 +3,9 @@
 
 #include <cstdint>
 
-#define PIN_ROT_SWI_A    0   // Rotary Switch A
-#define PIN_ROT_SWI_B    1   // Rotary Switch B
-#define PIN_ROT_SWI_C    2   // Rotary Switch C
+#define PIN_ROT_SWI_1    0   // Rotary Switch 1
+#define PIN_ROT_SWI_2    1   // Rotary Switch 2
+#define PIN_ROT_SWI_3    2   // Rotary Switch 3
 #define PIN_AUDIO_PREV   3   // Play previous audio file buttion
 #define PIN_AUDIO_PLAY   4   // Play / Pause button
 #define PIN_AUDIO_NEXT   5   // Play next audio file button
