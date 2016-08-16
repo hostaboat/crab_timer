@@ -38,9 +38,9 @@ void setup(void)
 
     // VS1053 data request pin
     pinMode(PIN_AUDIO_DREQ, INPUT);
-    pinMode(PIN_AUDIO_PLAY, INPUT_PULLUP);
-    pinMode(PIN_AUDIO_NEXT, INPUT_PULLUP);
-    pinMode(PIN_AUDIO_PREV, INPUT_PULLUP);
+    pinMode(PIN_AUDIO_PLAY, INPUT);
+    pinMode(PIN_AUDIO_NEXT, INPUT);
+    pinMode(PIN_AUDIO_PREV, INPUT);
 
     // Rotary encoder for brightness
     pinMode(PIN_ROT_ENC_BR_A, INPUT_PULLUP);
